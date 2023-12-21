@@ -2,6 +2,8 @@ import os
 import torch
 from torch import nn
 
+from environment import State
+
 device = (
     "cuda"
     if torch.cuda.is_available()
@@ -30,27 +32,27 @@ class NeuralNetwork(nn.Module):
     #     return logits
     
     # forward pass
-    def forward(self, state) -> list[float]:
+    def forward(self, state: State) -> list[float]:
         state = self.flatten(state)
         logits = self.linear_relu_stack(state)
         return logits
 
-    def best_action(self, state) -> int:
+    def best_action(self, state: State) -> int:
         # action_probabilities = self.forward(state)
         logits = self(state)
         action_probabilities = nn.softmax(logits, dim=1)
         return torch.argmax(action_probabilities)
+
+    def gradient_descent(self, prediction, labels):
+        loss = (prediction - labels).sum()
     
-    # backwards pass
-    def update_weights(self):
-        # labels = [1, 0, 0]
+            # labels = [1, 0, 0]
         # prediction = [0.7, 0.2, 0.1]
+
+        loss.backward() # backward pass
         loss = (prediction - labels).sum()
         # loss = (0.7 - 1) + (0.2 - 0) + (0.1 - 0) = 0.3
         loss.backward() # backward pass
-        pass
-
-    def gradient_descent(self):
         optim = torch.optim.SGD(model.parameters(), lr=1e-2, momentum=0.9)
         optim.step() #gradient descent
 
