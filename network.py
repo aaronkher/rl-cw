@@ -13,9 +13,9 @@ device = (
 )
 print(f"Using {device} device")
 
+
 class NeuralNetwork(nn.Module):
     def __init__(self, state_variable_count: int, action_count: int):
-        
         super().__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
@@ -26,16 +26,17 @@ class NeuralNetwork(nn.Module):
             nn.Linear(512, action_count),
         )
 
-    # def forward(self, state):
-    #     state = self.flatten(state)
-    #     logits = self.linear_relu_stack(state)
-    #     return logits
-    
     # forward pass
     def forward(self, state: State) -> list[float]:
         state = self.flatten(state)
         logits = self.linear_relu_stack(state)
         return logits
+    
+    # need to return the q value for an action AND
+    # return the corresponding action so DQN class knows what to use
+    def get_q_value(self) -> ...:
+        
+        pass
 
     def best_action(self, state: State) -> int:
         # action_probabilities = self.forward(state)
@@ -43,18 +44,18 @@ class NeuralNetwork(nn.Module):
         action_probabilities = nn.softmax(logits, dim=1)
         return torch.argmax(action_probabilities)
 
-    def gradient_descent(self, prediction, labels):
-        loss = (prediction - labels).sum()
-    
-            # labels = [1, 0, 0]
-        # prediction = [0.7, 0.2, 0.1]
+    def gradient_descent(self, prediction: float, label: float):
+        criterion = torch.nn.MSELoss()
+        predictions = model(x)
+        loss = criterion(predictions, label)
 
-        loss.backward() # backward pass
-        loss = (prediction - labels).sum()
-        # loss = (0.7 - 1) + (0.2 - 0) + (0.1 - 0) = 0.3
-        loss.backward() # backward pass
+        
+
+
         optim = torch.optim.SGD(model.parameters(), lr=1e-2, momentum=0.9)
-        optim.step() #gradient descent
+        optim.step()  # gradient descent
+
+        loss.backward()  # backward pass
 
 
 model = NeuralNetwork().to(device)
