@@ -15,12 +15,14 @@ class ActionTaken:
     old_state: State
     new_state: State
     reward: float
-    terminated: bool
+    terminated: bool  # win
+    truncated: bool  # loss (too many episodes)
 
 
 class Environment:
     def __init__(self):
         self.env = gymnasium.make("Acrobot-v1", render_mode="human")
+        # self.env = gymnasium.make("Acrobot-v1")
 
         self.reset()
         self.last_action_taken: ActionTaken
@@ -44,8 +46,18 @@ class Environment:
         old_state = self.current_state
         (new_state, reward, terminated, truncated, info) = self.env.step(action)
 
+        # tmp: add more reward the higher the tip
+        cos_angle = new_state[0]
+        sin_angle = new_state[1]
+        angle = np.arctan2(sin_angle, cos_angle)
+        cos_angle2 = new_state[3]
+        sin_angle2 = new_state[4]
+        angle2 = np.arctan2(sin_angle2, cos_angle2)
+        reward += abs(angle) - abs(angle2) - 5
+        print(reward)
+
         self.last_action_taken = ActionTaken(
-            action, old_state, new_state, float(reward), terminated
+            action, old_state, new_state, float(reward), terminated, truncated
         )
         return self.last_action_taken
 
@@ -57,6 +69,7 @@ class Environment:
             new_state=current_state,
             reward=0.0,
             terminated=False,
+            truncated=False,
         )
 
     @property

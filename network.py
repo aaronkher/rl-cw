@@ -59,7 +59,7 @@ class NeuralNetwork(nn.Module):
         Returns:
             torch.Tensor: a tensor of length 3 (one q-value for each action)
         """
-        
+
         return self.linear_relu_stack(state)
 
     # need to return the q value for an action AND
@@ -105,6 +105,9 @@ class NeuralNetwork(nn.Module):
 
         # raise "TODO"
 
+        optim = torch.optim.SGD(self.parameters(), lr=1e-2, momentum=0.9)
+        optim.zero_grad()
+
         y_hat = nn_result.tensor
         y_t = nn_result.tensor.clone()
         best_action = nn_result.best_action()
@@ -115,7 +118,7 @@ class NeuralNetwork(nn.Module):
 
         loss.backward()
 
-
+        optim.step()  # gradient descent
 
         # criterion = torch.nn.MSELoss()
         # predictions = self(state)
