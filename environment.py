@@ -27,24 +27,25 @@ class Environment:
 
     @property
     def action_list(self) -> list[Action]:
-        # todo replace with self.env.action_space.something
-        return [0, 1, 2]
+        # [0, 1, 2] for acrobot
+        return list(range(self.env.action_space.start, self.env.action_space.n))  # type: ignore
 
     @property
     def action_count(self) -> int:
+        # 3 for acrobot
         return len(self.action_list)
 
     @property
     def observation_space_length(self) -> int:
-        # todo replace with self.env.observation_space.something
-        return 6
+        # 6 for acrobot
+        return sum(self.env.observation_space.shape)  # type: ignore
 
     def take_action(self, action: Action) -> ActionTaken:
         old_state = self.current_state
         (new_state, reward, terminated, truncated, info) = self.env.step(action)
 
         self.last_action_taken = ActionTaken(
-            action, old_state, new_state, reward, terminated
+            action, old_state, new_state, float(reward), terminated
         )
         return self.last_action_taken
 
