@@ -3,7 +3,7 @@ import random
 import numpy as np
 
 from environment import Environment, Action, State, ActionTaken
-from network import NeuralNetwork
+from network import NeuralNetwork, NeuralNetworkResult
 
 
 class DQN:
@@ -33,6 +33,9 @@ class DQN:
     def execute_action(self, action: Action) -> ActionTaken:
         return self.environment.take_action(action)
 
+    def get_q_values(self, state: State, action: Action) -> NeuralNetworkResult:
+        return self.neural_network.get_q_values(state)
+    
     def get_q_value_for_action(self, state: State, action: Action) -> float:
         neural_network_result = self.neural_network.get_q_values(state)
         return neural_network_result.q_value_for_action(action)
@@ -55,8 +58,8 @@ class DQN:
 
         return td_target
 
-    def gradient_descent(self, prediction: float, label: float):
-        self.neural_network.gradient_descent(prediction, label)
+    def backprop(self, nn_result: NeuralNetworkResult, td_target: float):
+        self.neural_network.backprop(nn_result, td_target)
 
     def train(self):
         for episode in range(self.episode_count):
@@ -69,6 +72,6 @@ class DQN:
                 self.execute_action(action)
 
                 y_t = self.compute_td_target()
-                y_hat = self.get_q_value_for_action(state, action)
+                y_hat = self.get_q_values(state, action)
 
-                self.gradient_descent(y_t, y_hat)
+                self.backprop(y_hat, y_t)

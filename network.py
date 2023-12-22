@@ -94,7 +94,7 @@ class NeuralNetwork(nn.Module):
         neural_network_result = self.get_q_values(state)
         return neural_network_result.best_action()
 
-    def gradient_descent(self, prediction: float, label: float):
+    def backprop(self, nn_result: NeuralNetworkResult, td_target: float):
         # "prediction" is y_t and "label" is y_hat.
 
         # How should this function work?
@@ -102,13 +102,26 @@ class NeuralNetwork(nn.Module):
         # It should use MSE and gradient descent. right?
         # gradient descent is for updating the whole list of q-values. here
         # we are only trying to update one q-value. how does this work?
-        raise "TODO"
+
+        # raise "TODO"
+
+        y_hat = nn_result.tensor
+        y_t = nn_result.tensor.clone()
+        best_action = nn_result.best_action()
+        y_t[best_action] = td_target
 
         criterion = torch.nn.MSELoss()
-        predictions = model(x)
-        loss = criterion(predictions, label)
+        loss = criterion(y_hat, y_t)
 
-        optim = torch.optim.SGD(model.parameters(), lr=1e-2, momentum=0.9)
-        optim.step()  # gradient descent
+        loss.backward()
 
-        loss.backward()  # backward pass
+
+
+        # criterion = torch.nn.MSELoss()
+        # predictions = self(state)
+        # loss = criterion(predictions, label)
+
+        # optim = torch.optim.SGD(self.parameters(), lr=1e-2, momentum=0.9)
+        # optim.step()  # gradient descent
+
+        # loss.backward()  # backward pass
