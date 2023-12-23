@@ -2,6 +2,7 @@ import random
 from dataclasses import dataclass
 
 import numpy as np
+import math
 
 from environment import Environment, Action, State, ActionResult
 from network import NeuralNetwork, NeuralNetworkResult
@@ -35,7 +36,12 @@ class DQN:
     ):
         self.episode_count = episode_count
         self.timestep_count = timestep_count
+
         self.epsilon = epsilon
+        self.epsilon_min = 0.05
+        self.epsilon_start = 0.9
+        self.decay_rate = 0.01
+
         self.gamma = gamma
         self.C = 50  # TODO: don't harcode this
         self.environment = Environment()
@@ -89,6 +95,12 @@ class DQN:
 
         return td_target
 
+    def decay_epsilon(self, episode):
+        # epsilon = epsilon_min + (epsilon_start - epsilon_min) x epsilon^-decay_rate * episode
+        self.epsilon = self.epsilon_min + (
+            self.epsilon_start - self.epsilon_min
+        ) * math.exp(-self.decay_rate * episode)
+
     def update_target_network(self):
         policy_network_weights = self.policy_network.state_dict()
         self.target_network.load_state_dict(policy_network_weights)
@@ -105,19 +117,18 @@ class DQN:
             reward_sum = 0
 
             for timestep in range(self.timestep_count):
-                # if timestep % 100 == 0:
-                # print(f"Timestep: {timestep}")
-                # self.environment.render()
+                self.decay_epsilon(episode)
+                if timestep % 100 == 0:
+                    print(f"Timestep: {timestep}, total reward {reward_sum}")
+                    # self.environment.render()
 
                 state = self.environment.current_state  # S_t
 
                 action = self.get_action_using_epsilon_greedy(state)  # A_t
                 action_result = self.execute_action(action)
 
+                action_result = self.execute_action(action)
                 reward_sum += action_result.reward
-                # print(
-                #     f"Episode {episode} Timestep {timestep} | action: {action}, reward: {action_result.reward:.2f}, total reward: {reward_sum:.2f}"
-                # )
 
                 experience = Experience(
                     action_result.old_state,
@@ -137,11 +148,17 @@ class DQN:
 
                     self.backprop(y_hat, y_t)
 
+                timestep_C_count += 1
                 if timestep_C_count == self.C:
                     self.update_target_network()
                     timestep_C_count = 0
 
-                timestep_C_count += 1
+                # process termination
+                if action_result.terminated:
+                    print(
+                        f"Episode {episode} terminated with total reward {reward_sum}"
+                    )
+                    break
 
                 # process termination
                 if action_result.terminated:

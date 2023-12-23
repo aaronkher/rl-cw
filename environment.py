@@ -47,7 +47,7 @@ class Environment:
         (new_state, reward, terminated, truncated, info) = self.env.step(action)
 
         (x_axis_position, velocity) = new_state
-        reward += (abs(velocity) * 100) 
+        reward += abs(velocity) * 100
 
         self.last_action_taken = ActionResult(
             action, old_state, new_state, float(reward), terminated, truncated
