@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from environment import Environment, Action, State, ActionTaken
+from environment import Environment, Action, State, ActionResult
 from network import NeuralNetwork, NeuralNetworkResult
 
 
@@ -24,7 +24,7 @@ class ReplayBuffer:
 
     def get_batch(self, batch_size: int) -> list[Experience]:
         return random.sample(self.buffer, batch_size)
-    
+
     def size(self) -> int:
         return len(self.buffer)
 
@@ -54,7 +54,7 @@ class DQN:
             action = self.get_best_action(state)
         return action
 
-    def execute_action(self, action: Action) -> ActionTaken:
+    def execute_action(self, action: Action) -> ActionResult:
         return self.environment.take_action(action)
 
     def get_q_values(self, state: State) -> NeuralNetworkResult:
@@ -93,31 +93,51 @@ class DQN:
             reward_sum = 0
 
             for timestep in range(self.timestep_count):
-                if timestep % 100 == 0:
-                    print(f"Timestep: {timestep}")
-                    self.environment.render()
+                # if timestep % 100 == 0:
+                    # print(f"Timestep: {timestep}")
+                    # self.environment.render()
 
                 state = self.environment.current_state  # S_t
 
                 action = self.get_action_using_epsilon_greedy(state)  # A_t
-                action_taken = self.execute_action(action)
+                action_result = self.execute_action(action)
+
+                reward_sum += action_result.reward
+                # print(
+                #     f"Episode {episode} Timestep {timestep} | action: {action}, reward: {action_result.reward:.2f}, total reward: {reward_sum:.2f}"
+                # )
 
                 experience = Experience(
-                    action_taken.old_state,
-                    action_taken.new_state,
+                    action_result.old_state,
+                    action_result.new_state,
                     action,
-                    action_taken.reward,
+                    action_result.reward,
                 )
                 self.replay_buffer.add_experience(experience)
-                
-                if self.replay_buffer.size() <= 20:
+
+                if self.replay_buffer.size() <= 5:
                     continue
 
-                replay_batch = self.replay_buffer.get_batch(20)
-                for replay in replay_batch:
-                    y_t = self.compute_td_target(replay)
-                    y_hat = self.get_q_values(state)
+                # replay_batch = self.replay_buffer.get_batch(5)
+                # for replay in replay_batch:
+                #     y_t = self.compute_td_target(replay)
+                #     y_hat = self.get_q_values(state)
 
-                    self.backprop(y_hat, y_t)
+                #     self.backprop(y_hat, y_t)
+                y_t = self.compute_td_target(experience)
+                y_hat = self.get_q_values(state)
 
-            print(f"Episode {episode} finished with total reward {reward_sum}")
+                self.backprop(y_hat, y_t)
+
+                # process termination
+                if action_result.terminated:
+                    print(
+                        f"Episode {episode} terminated with total reward {reward_sum}"
+                    )
+                    break
+
+                if action_result.truncated:
+                    print(f"Episode {episode} truncated with total reward {reward_sum}")
+                    break
+
+            # print(f"Episode {episode} finished with total reward {reward_sum}")
