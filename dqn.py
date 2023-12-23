@@ -37,13 +37,18 @@ class DQN:
         self.timestep_count = timestep_count
         self.epsilon = epsilon
         self.gamma = gamma
-
+        self.C = 50  # TODO: don't harcode this
         self.environment = Environment()
-        self.neural_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
+
+        # initialise replay memory
         self.replay_buffer = ReplayBuffer()
+        # initialise q1
+        self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
+        # initialise q2
+        self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
 
     def get_best_action(self, state: State) -> Action:
-        return self.neural_network.get_best_action(state)
+        return self.policy_network.get_best_action(state)
 
     def get_action_using_epsilon_greedy(self, state: State):
         if np.random.uniform(0, 1) < self.epsilon:
@@ -57,11 +62,13 @@ class DQN:
     def execute_action(self, action: Action) -> ActionResult:
         return self.environment.take_action(action)
 
+    # using policy
     def get_q_values(self, state: State) -> NeuralNetworkResult:
-        return self.neural_network.get_q_values(state)
+        return self.policy_network.get_q_values(state)
 
+    # using target network here to estimate q values
     def get_q_value_for_action(self, state: State, action: Action) -> float:
-        neural_network_result = self.neural_network.get_q_values(state)
+        neural_network_result = self.target_network.get_q_values(state)
         return neural_network_result.q_value_for_action(action)
 
     def compute_td_target(self, experience: Experience) -> float:
@@ -82,10 +89,15 @@ class DQN:
 
         return td_target
 
+    def update_target_network(self):
+        policy_network_weights = self.policy_network.state_dict()
+        self.target_network.load_state_dict(policy_network_weights)
+
     def backprop(self, nn_result: NeuralNetworkResult, td_target: float):
-        self.neural_network.backprop(nn_result, td_target)
+        self.policy_network.backprop(nn_result, td_target)
 
     def train(self):
+        timestep_C_count = 0
         for episode in range(self.episode_count):
             print(f"Episode: {episode}")
             self.environment.reset()
@@ -94,8 +106,8 @@ class DQN:
 
             for timestep in range(self.timestep_count):
                 # if timestep % 100 == 0:
-                    # print(f"Timestep: {timestep}")
-                    # self.environment.render()
+                # print(f"Timestep: {timestep}")
+                # self.environment.render()
 
                 state = self.environment.current_state  # S_t
 
@@ -118,16 +130,18 @@ class DQN:
                 if self.replay_buffer.size() <= 5:
                     continue
 
-                # replay_batch = self.replay_buffer.get_batch(5)
-                # for replay in replay_batch:
-                #     y_t = self.compute_td_target(replay)
-                #     y_hat = self.get_q_values(state)
+                replay_batch = self.replay_buffer.get_batch(5)
+                for replay in replay_batch:
+                    y_t = self.compute_td_target(replay)
+                    y_hat = self.get_q_values(state)
 
-                #     self.backprop(y_hat, y_t)
-                y_t = self.compute_td_target(experience)
-                y_hat = self.get_q_values(state)
+                    self.backprop(y_hat, y_t)
 
-                self.backprop(y_hat, y_t)
+                if timestep_C_count == self.C:
+                    self.update_target_network()
+                    timestep_C_count = 0
+
+                timestep_C_count += 1
 
                 # process termination
                 if action_result.terminated:
