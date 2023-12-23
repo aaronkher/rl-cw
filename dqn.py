@@ -1,5 +1,6 @@
 import random
 from dataclasses import dataclass
+import torch
 
 import numpy as np
 import math
@@ -38,12 +39,14 @@ class DQN:
         self.timestep_count = timestep_count
 
         self.epsilon = epsilon
-        self.epsilon_min = 0.05
+        self.epsilon_min = 0.01
         self.epsilon_start = 0.9
-        self.decay_rate = 0.01
+        self.decay_rate = 0.05
 
         self.gamma = gamma
         self.C = 50  # TODO: don't harcode this
+        self.buffer_batch_size = 50
+
         self.environment = Environment()
 
         # initialise replay memory
@@ -117,7 +120,6 @@ class DQN:
             reward_sum = 0
 
             for timestep in range(self.timestep_count):
-                self.decay_epsilon(episode)
                 if timestep % 100 == 0:
                     print(f"Timestep: {timestep}, total reward {reward_sum}")
                     # self.environment.render()
@@ -138,10 +140,10 @@ class DQN:
                 )
                 self.replay_buffer.add_experience(experience)
 
-                if self.replay_buffer.size() <= 5:
+                if self.replay_buffer.size() <= self.buffer_batch_size:
                     continue
 
-                replay_batch = self.replay_buffer.get_batch(5)
+                replay_batch = self.replay_buffer.get_batch(self.buffer_batch_size)
                 for replay in replay_batch:
                     y_t = self.compute_td_target(replay)
                     y_hat = self.get_q_values(state)
@@ -170,5 +172,5 @@ class DQN:
                 if action_result.truncated:
                     print(f"Episode {episode} truncated with total reward {reward_sum}")
                     break
-
+            self.decay_epsilon(episode)
             # print(f"Episode {episode} finished with total reward {reward_sum}")

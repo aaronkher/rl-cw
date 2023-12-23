@@ -96,7 +96,11 @@ class NeuralNetwork(nn.Module):
         neural_network_result = self.get_q_values(state)
         return neural_network_result.best_action()
 
-    def backprop(self, nn_result: NeuralNetworkResult, td_target: float):
+    def backprop(
+        self,
+        nn_result: NeuralNetworkResult,
+        td_target: float,
+    ):
         # "prediction" is y_t and "label" is y_hat.
 
         # How should this function work?
