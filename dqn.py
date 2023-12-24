@@ -118,68 +118,70 @@ class DQN:
         self.policy_network.backprop(experiences, td_targets)
 
     def train(self):
-        timestep_C_count = 0
         episodes = []
-        for episode in range(self.episode_count):
-            print(f"Episode: {episode}")
-            self.environment.reset()
 
-            reward_sum = 0
-            timestep = 0
-            terminated = False
-            for timestep in range(self.timestep_count):
-                state = self.environment.current_state  # S_t
+        try:
+            timestep_C_count = 0
+            for episode in range(self.episode_count):
+                print(f"Episode: {episode}")
+                self.environment.reset()
 
-                action = self.get_action_using_epsilon_greedy(state)  # A_t
-                action_result = self.execute_action(action)
+                timestep = 0
+                reward_sum = 0
+                won = False
 
-                action_result = self.execute_action(action)
-                reward_sum += action_result.reward
+                for timestep in range(self.timestep_count):
+                    state = self.environment.current_state  # S_t
 
-                # print(
-                #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
-                # )
+                    action = self.get_action_using_epsilon_greedy(state)  # A_t
+                    action_result = self.execute_action(action)
 
-                experience = Experience(
-                    action_result.old_state,
-                    action_result.new_state,
-                    action,
-                    action_result.reward,
-                )
-                self.replay_buffer.add_experience(experience)
+                    action_result = self.execute_action(action)
+                    reward_sum += action_result.reward
 
-                if self.replay_buffer.size() > self.buffer_batch_size:
-                    replay_batch = self.replay_buffer.get_batch(self.buffer_batch_size)
-                    td_targets = [
-                        self.compute_td_target(experience)
-                        for experience in replay_batch
-                    ]
+                    # print(
+                    #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
+                    # )
 
-                    self.backprop(replay_batch, td_targets)
-
-                timestep_C_count += 1
-                if timestep_C_count == self.C:
-                    self.update_target_network()
-                    timestep_C_count = 0
-
-                # process termination
-                if action_result.terminated:
-                    terminated = True
-                    print(
-                        f"Episode {episode} terminated (won) after {timestep} timestaps"
-                        f" with total reward {reward_sum}"
+                    experience = Experience(
+                        action_result.old_state,
+                        action_result.new_state,
+                        action,
+                        action_result.reward,
                     )
-                    break
+                    self.replay_buffer.add_experience(experience)
 
-                if action_result.truncated:
-                    print(
-                        f"Episode {episode} truncated (lost) after {timestep} timesteps"
-                        f" with total reward {reward_sum}"
-                    )
-                    break
-            episodes.append(
-                EpisodeData(episode, reward_sum, timestep, terminated)
-            )
-            self.decay_epsilon(episode)
-            # print(f"Episode {episode} finished with total reward {reward_sum}")
+                    if self.replay_buffer.size() > self.buffer_batch_size:
+                        replay_batch = self.replay_buffer.get_batch(
+                            self.buffer_batch_size
+                        )
+                        td_targets = [
+                            self.compute_td_target(experience)
+                            for experience in replay_batch
+                        ]
+
+                        self.backprop(replay_batch, td_targets)
+
+                    timestep_C_count += 1
+                    if timestep_C_count == self.C:
+                        self.update_target_network()
+                        timestep_C_count = 0
+
+                    # process termination
+                    if action_result.terminal:
+                        won = action_result.won
+                        won_str = "won" if won else "lost"
+                        print(
+                            f"Episode {episode+1} ended ({won_str}) after {timestep+1} timestaps"
+                            f" with total reward {reward_sum:.2f}"
+                        )
+                        break
+
+                episodes.append(EpisodeData(episode, reward_sum, timestep, won))
+                self.decay_epsilon(episode)
+                # print(f"Episode {episode} finished with total reward {reward_sum}")
+
+        except KeyboardInterrupt:
+            pass
+
         plot_episode_data(episodes)

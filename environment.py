@@ -16,8 +16,8 @@ class ActionResult:
     old_state: State
     new_state: State
     reward: float
-    terminated: bool  # win
-    truncated: bool  # loss (too many episodes)
+    terminal: bool
+    won: bool
 
 
 class Environment:
@@ -50,10 +50,15 @@ class Environment:
         new_state = NeuralNetwork.tensorify(new_state)
 
         (x_axis_position, velocity) = new_state
-        reward += abs(velocity)  # * 100
+        reward += abs(velocity) / 0.07 / 2
 
         self.last_action_taken = ActionResult(
-            action, old_state, new_state, float(reward), terminated, truncated
+            action,
+            old_state,
+            new_state,
+            float(reward),
+            terminated or truncated,
+            terminated,
         )
         return self.last_action_taken
 
@@ -66,8 +71,8 @@ class Environment:
             old_state=None,  # type: ignore
             new_state=current_state,
             reward=0.0,
-            terminated=False,
-            truncated=False,
+            terminal=False,
+            won=False,
         )
 
     @property
@@ -76,7 +81,7 @@ class Environment:
 
     @property
     def is_terminated(self) -> bool:
-        return self.last_action_taken.terminated or self.last_action_taken.truncated
+        return self.last_action_taken.terminal
 
     @property
     def last_reward(self) -> float:

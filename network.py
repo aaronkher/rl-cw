@@ -55,21 +55,14 @@ class NeuralNetwork(nn.Module):
     def __init__(self, env: Environment):
         super(NeuralNetwork, self).__init__()
         self.flatten = nn.Flatten()
-        # self.linear_relu_stack = nn.Sequential(
-        #     nn.Linear(env.observation_space_length, 128),
-        #     nn.ReLU(),
-        #     nn.Linear(128, 128),
-        #     nn.ReLU(),
-        #     nn.Linear(128, env.action_count),
-        # )
-        # self.layers = [
-        #     nn.Linear(env.observation_space_length, 128),
-        #     nn.Linear(128, 128),
-        #     nn.Linear(128, env.action_count),
-        # ]
-        self.layer1 = nn.Linear(env.observation_space_length, 128)
-        self.layer2 = nn.Linear(128, 128)
-        self.layer3 = nn.Linear(128, env.action_count)
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(env.observation_space_length, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, env.action_count),
+        )
+
 
         # self.optim = torch.optim.SGD(self.parameters(), lr=1e-2, momentum=0.9)
         self.optim = torch.optim.AdamW(self.parameters(), lr=1e-2, amsgrad=True)
@@ -86,10 +79,7 @@ class NeuralNetwork(nn.Module):
             torch.Tensor: a tensor of length 3 (one q-value for each action)
         """
 
-        # return self.linear_relu_stack(state)
-        x = relu(self.layer1(state))
-        x = relu(self.layer2(x))
-        return self.layer3(x)
+        return self.linear_relu_stack(state)
 
     # need to return the q value for an action AND
     # return the corresponding action so DQN class knows what to use
