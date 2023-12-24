@@ -20,8 +20,11 @@ class Experience:
 class ReplayBuffer:
     def __init__(self):
         self.buffer: list[Experience] = []
+        self.max_buffer_len = 10000
 
     def add_experience(self, experience: Experience):
+        if len(self.buffer) >= self.max_buffer_len:
+            self.buffer.pop(0)  # remove oldest
         self.buffer.append(experience)
 
     def get_batch(self, batch_size: int) -> list[Experience]:
@@ -45,7 +48,7 @@ class DQN:
 
         self.gamma = gamma
         self.C = 50  # TODO: don't harcode this
-        self.buffer_batch_size = 50
+        self.buffer_batch_size = 100
 
         self.environment = Environment()
 
@@ -55,6 +58,8 @@ class DQN:
         self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
         # initialise q2
         self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
+        # copy q2 to q1
+        self.policy_network.load_state_dict(self.target_network.state_dict())
 
     def get_best_action(self, state: State) -> Action:
         return self.policy_network.get_best_action(state)
@@ -108,8 +113,8 @@ class DQN:
         policy_network_weights = self.policy_network.state_dict()
         self.target_network.load_state_dict(policy_network_weights)
 
-    def backprop(self, nn_result: NeuralNetworkResult, td_target: float):
-        self.policy_network.backprop(nn_result, td_target)
+    def backprop(self, experiences: list[Experience], td_targets: list[float]):
+        self.policy_network.backprop(experiences, td_targets)
 
     def train(self):
         timestep_C_count = 0
@@ -120,10 +125,6 @@ class DQN:
             reward_sum = 0
 
             for timestep in range(self.timestep_count):
-                if timestep % 100 == 0:
-                    print(f"Timestep: {timestep}, total reward {reward_sum}")
-                    # self.environment.render()
-
                 state = self.environment.current_state  # S_t
 
                 action = self.get_action_using_epsilon_greedy(state)  # A_t
@@ -131,6 +132,10 @@ class DQN:
 
                 action_result = self.execute_action(action)
                 reward_sum += action_result.reward
+
+                # print(
+                #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
+                # )
 
                 experience = Experience(
                     action_result.old_state,
@@ -140,15 +145,14 @@ class DQN:
                 )
                 self.replay_buffer.add_experience(experience)
 
-                if self.replay_buffer.size() <= self.buffer_batch_size:
-                    continue
+                if self.replay_buffer.size() > self.buffer_batch_size:
+                    replay_batch = self.replay_buffer.get_batch(self.buffer_batch_size)
+                    td_targets = [
+                        self.compute_td_target(experience)
+                        for experience in replay_batch
+                    ]
 
-                replay_batch = self.replay_buffer.get_batch(self.buffer_batch_size)
-                for replay in replay_batch:
-                    y_t = self.compute_td_target(replay)
-                    y_hat = self.get_q_values(state)
-
-                    self.backprop(y_hat, y_t)
+                    self.backprop(replay_batch, td_targets)
 
                 timestep_C_count += 1
                 if timestep_C_count == self.C:
@@ -158,19 +162,17 @@ class DQN:
                 # process termination
                 if action_result.terminated:
                     print(
-                        f"Episode {episode} terminated with total reward {reward_sum}"
-                    )
-                    break
-
-                # process termination
-                if action_result.terminated:
-                    print(
-                        f"Episode {episode} terminated with total reward {reward_sum}"
+                        f"Episode {episode} terminated (won) after {timestep} timestaps"
+                        f" with total reward {reward_sum}"
                     )
                     break
 
                 if action_result.truncated:
-                    print(f"Episode {episode} truncated with total reward {reward_sum}")
+                    print(
+                        f"Episode {episode} truncated (lost) after {timestep} timesteps"
+                        f" with total reward {reward_sum}"
+                    )
                     break
+
             self.decay_epsilon(episode)
             # print(f"Episode {episode} finished with total reward {reward_sum}")

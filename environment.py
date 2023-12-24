@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 
-import numpy as np
-import numpy.typing as npt
+import torch
 
 import gymnasium
 
+from network import NeuralNetwork
+
 Action = int
-State = npt.NDArray[np.float64]
+State = torch.Tensor
 
 
 @dataclass
@@ -21,8 +22,8 @@ class ActionResult:
 
 class Environment:
     def __init__(self):
-        self.env = gymnasium.make("MountainCar-v0", render_mode="human")
-        # self.env = gymnasium.make("MountainCar-v0")
+        # self.env = gymnasium.make("MountainCar-v0", render_mode="human")
+        self.env = gymnasium.make("MountainCar-v0")
 
         self.reset()
         self.last_action_taken: ActionResult
@@ -46,8 +47,10 @@ class Environment:
         old_state = self.current_state
         (new_state, reward, terminated, truncated, info) = self.env.step(action)
 
+        new_state = NeuralNetwork.tensorify(new_state)
+
         (x_axis_position, velocity) = new_state
-        reward += abs(velocity) * 100
+        reward += abs(velocity)  # * 100
 
         self.last_action_taken = ActionResult(
             action, old_state, new_state, float(reward), terminated, truncated
@@ -56,6 +59,8 @@ class Environment:
 
     def reset(self):
         (current_state, _) = self.env.reset()
+        current_state = NeuralNetwork.tensorify(current_state)
+
         self.last_action_taken = ActionResult(
             action=None,  # type: ignore
             old_state=None,  # type: ignore
@@ -71,7 +76,7 @@ class Environment:
 
     @property
     def is_terminated(self) -> bool:
-        return self.last_action_taken.terminated
+        return self.last_action_taken.terminated or self.last_action_taken.truncated
 
     @property
     def last_reward(self) -> float:
