@@ -6,7 +6,7 @@ import numpy as np
 import math
 
 from environment import Environment, Action, State, ActionResult
-from network import NeuralNetwork, NeuralNetworkResult
+from network import NeuralNetwork, NeuralNetworkResult, NeuralNetworkResultBatch
 from data_helper import plot_episode_data, EpisodeData
 
 
@@ -16,6 +16,30 @@ class Experience:
     new_state: State
     action: Action
     reward: float
+
+
+class ExperienceBatch:
+    def __init__(self, experiences: list[Experience]):
+        self.size = len(experiences)
+
+        # tensorify = lambda prop_name: NeuralNetwork.tensorify(
+        #     [getattr(exp, prop_name) for exp in experiences]
+        # )
+        # tensorify = lambda prop_name: NeuralNetwork.tensorify(
+        #     [getattr(exp, prop_name) for exp in experiences]
+        # )
+        # self.actions = tensorify("action")
+        # self.rewards = tensorify("reward")
+
+        # Tensor[[0], [2], [1], ...]
+        self.actions = NeuralNetwork.tensorify([[exp.action] for exp in experiences])
+
+        # Tensor[-0.99, -0.99, ...]
+        self.rewards = NeuralNetwork.tensorify([exp.reward for exp in experiences])
+
+        # Tensor[State, State, ...]
+        # states are already torch tensors, so we can just use torch.stack
+        self.old_states = torch.stack([exp.old_state for exp in experiences])
 
 
 class ReplayBuffer:
@@ -28,8 +52,9 @@ class ReplayBuffer:
             self.buffer.pop(0)  # remove oldest
         self.buffer.append(experience)
 
-    def get_batch(self, batch_size: int) -> list[Experience]:
-        return random.sample(self.buffer, batch_size)
+    def get_batch(self, batch_size: int) -> ExperienceBatch:
+        experiences = random.sample(self.buffer, batch_size)
+        return ExperienceBatch(experiences)
 
     def size(self) -> int:
         return len(self.buffer)
@@ -104,6 +129,11 @@ class DQN:
 
         return td_target
 
+    def compute_td_targets_batch(
+        self, experiences: ExperienceBatch
+    ) -> NeuralNetworkResultBatch:
+        return self.policy_network.get_q_values_batch(experiences.old_states)
+
     def decay_epsilon(self, episode):
         # epsilon = epsilon_min + (epsilon_start - epsilon_min) x epsilon^-decay_rate * episode
         self.epsilon = self.epsilon_min + (
@@ -114,7 +144,9 @@ class DQN:
         policy_network_weights = self.policy_network.state_dict()
         self.target_network.load_state_dict(policy_network_weights)
 
-    def backprop(self, experiences: list[Experience], td_targets: list[float]):
+    def backprop(
+        self, experiences: ExperienceBatch, td_targets: NeuralNetworkResultBatch
+    ):
         self.policy_network.backprop(experiences, td_targets)
 
     def train(self):
@@ -155,10 +187,7 @@ class DQN:
                         replay_batch = self.replay_buffer.get_batch(
                             self.buffer_batch_size
                         )
-                        td_targets = [
-                            self.compute_td_target(experience)
-                            for experience in replay_batch
-                        ]
+                        td_targets = self.compute_td_targets_batch(replay_batch)
 
                         self.backprop(replay_batch, td_targets)
 

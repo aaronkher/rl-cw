@@ -10,12 +10,13 @@ from torch.nn.functional import relu
 # prevent circular import
 if TYPE_CHECKING:
     from environment import State, Environment, Action
-    from dqn import Experience
+    from dqn import ExperienceBatch
 else:
     Experience = object
     State = object
     Action = object
     Environment = object
+    ExperienceBatch = object
 
 
 @dataclass
@@ -32,6 +33,16 @@ class NeuralNetworkResult:
 
     def q_value_for_action(self, action: Action) -> float:
         return self.tensor[action].item()
+
+
+class NeuralNetworkResultBatch:
+    def __init__(self, batch_output: torch.Tensor):
+        # Tensor[[QValue * 3], [QValue * 3], ...]
+        self.batch_output = batch_output
+
+    def __getitem__(self, index: int) -> NeuralNetworkResult:
+        """Override index operator e.g. batch[0] -> NeuralNetworkResult"""
+        return NeuralNetworkResult(self.batch_output[index])
 
 
 class NeuralNetwork(nn.Module):
@@ -62,7 +73,6 @@ class NeuralNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(128, env.action_count),
         )
-
 
         # self.optim = torch.optim.SGD(self.parameters(), lr=1e-2, momentum=0.9)
         self.optim = torch.optim.AdamW(self.parameters(), lr=1e-2, amsgrad=True)
@@ -99,10 +109,15 @@ class NeuralNetwork(nn.Module):
         neural_network_output = self(state)
         return NeuralNetworkResult(neural_network_output)
 
-    def get_q_values_batch(self, states: list[State]) -> list[NeuralNetworkResult]:
-        batch_tensor = torch.tensor(states, dtype=torch.float32).to(self.device())
-        batch_output = self(batch_tensor)
-        return [NeuralNetworkResult(x) for x in batch_output]
+    def get_q_values_batch(self, states: torch.Tensor) -> NeuralNetworkResultBatch:
+        # states = Tensor[State, State, ...]
+        # where State is Tensor[position, velocity]
+
+        batch_output = self(states)
+        # batch_output = Tensor[[QValue * 3], [QValue * 3], ...]
+        # where QValue is float
+
+        return NeuralNetworkResultBatch(batch_output)
 
     def get_best_action(self, state: State) -> Action:
         """Get the best action in a given state according to the neural network.
@@ -117,12 +132,14 @@ class NeuralNetwork(nn.Module):
         neural_network_result = self.get_q_values(state)
         return neural_network_result.best_action()
 
-    def backprop(self, experiences: list[Experience], td_targets: list[float]):
+    def backprop(
+        self, experiences: ExperienceBatch, policy_net_qvalues: NeuralNetworkResultBatch
+    ):
         self.optim.zero_grad()
 
         # Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
-        experience_states = torch.stack([exp.old_state for exp in experiences])
+        experience_states = experiences.old_states
 
         # Tensor[[QValue * 3], [QValue * 3], ...]
         # where QValue is float
@@ -130,14 +147,14 @@ class NeuralNetwork(nn.Module):
 
         # Tensor[[Action], [Action], ...]
         # where Action is int
-        actions_chosen = self.tensorify([[exp.action] for exp in experiences])
+        actions_chosen = experiences.actions
 
         # Tensor[[QValue], [QValue], ...]
         actions_chosen_q_values = q_values.gather(1, actions_chosen)
 
         # Tensor[[TDTarget], [TDTarget], ...]
         # where TDTarget is QValue
-        td_targets_tensor = self.tensorify([[td_target] for td_target in td_targets])
+        td_targets_tensor = policy_net_qvalues.batch_output.gather(1, actions_chosen)
 
         criterion = torch.nn.MSELoss()
         loss = criterion(actions_chosen_q_values, td_targets_tensor)
