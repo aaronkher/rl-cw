@@ -45,18 +45,21 @@ class Environment:
 
     def take_action(self, action: Action) -> ActionResult:
         old_state = self.current_state
-        (new_state, reward, terminated, truncated, info) = self.env.step(action)
-
+        (new_state, _reward, terminated, truncated, info) = self.env.step(action)
         new_state = NeuralNetwork.tensorify(new_state)
+        reward = float(_reward)
 
         (x_axis_position, velocity) = new_state
-        reward += abs(velocity) / 0.07 / 2
+        reward += abs(float(velocity)) / 0.07 / 2
+
+        # clamp reward between -1 and 1
+        # reward = min(max(reward, -1.0), 1.0)
 
         self.last_action_taken = ActionResult(
             action,
             old_state,
             new_state,
-            float(reward),
+            reward,
             terminated or truncated,
             terminated,
         )

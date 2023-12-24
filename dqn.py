@@ -1,9 +1,10 @@
 import random
 from dataclasses import dataclass
-import torch
-
-import numpy as np
 import math
+import collections
+
+import torch
+import numpy as np
 
 from environment import Environment, Action, State, ActionResult
 from network import NeuralNetwork, NeuralNetworkResult, NeuralNetworkResultBatch
@@ -16,20 +17,18 @@ class Experience:
     new_state: State
     action: Action
     reward: float
+    terminal: bool
+
+
+@dataclass
+class TdTargetBatch:
+    # Tensor[[TDTarget], [TDTarget], ...]
+    tensor: torch.Tensor
 
 
 class ExperienceBatch:
     def __init__(self, experiences: list[Experience]):
         self.size = len(experiences)
-
-        # tensorify = lambda prop_name: NeuralNetwork.tensorify(
-        #     [getattr(exp, prop_name) for exp in experiences]
-        # )
-        # tensorify = lambda prop_name: NeuralNetwork.tensorify(
-        #     [getattr(exp, prop_name) for exp in experiences]
-        # )
-        # self.actions = tensorify("action")
-        # self.rewards = tensorify("reward")
 
         # Tensor[[0], [2], [1], ...]
         self.actions = NeuralNetwork.tensorify([[exp.action] for exp in experiences])
@@ -41,15 +40,15 @@ class ExperienceBatch:
         # states are already torch tensors, so we can just use torch.stack
         self.old_states = torch.stack([exp.old_state for exp in experiences])
 
+        # Tensor[False, False, True, ...]
+        self.terminal = NeuralNetwork.tensorify([exp.terminal for exp in experiences])
+
 
 class ReplayBuffer:
-    def __init__(self):
-        self.buffer: list[Experience] = []
-        self.max_buffer_len = 10000
+    def __init__(self, max_len=10000):
+        self.buffer = collections.deque(maxlen=max_len)
 
     def add_experience(self, experience: Experience):
-        if len(self.buffer) >= self.max_buffer_len:
-            self.buffer.pop(0)  # remove oldest
         self.buffer.append(experience)
 
     def get_batch(self, batch_size: int) -> ExperienceBatch:
@@ -62,19 +61,27 @@ class ReplayBuffer:
 
 class DQN:
     def __init__(
-        self, episode_count: int, timestep_count: int, epsilon: float, gamma: float
+        self,
+        episode_count: int,
+        timestep_count: int,
+        gamma: float,
+        epsilon_start: float = 0.9,
+        epsilon_min: float = 0.01,
+        epsilon_decay: float = 0.05,
+        C: int = 50,
+        buffer_batch_size: int = 100,
     ):
         self.episode_count = episode_count
         self.timestep_count = timestep_count
 
-        self.epsilon = epsilon
-        self.epsilon_min = 0.01
-        self.epsilon_start = 0.9
-        self.decay_rate = 0.05
+        self.epsilon_start = epsilon_start
+        self.epsilon_min = epsilon_min
+        self.decay_rate = epsilon_decay
+        self.epsilon = epsilon_start
 
         self.gamma = gamma
-        self.C = 50  # TODO: don't harcode this
-        self.buffer_batch_size = 100
+        self.C = C
+        self.buffer_batch_size = buffer_batch_size
 
         self.environment = Environment()
 
@@ -129,24 +136,48 @@ class DQN:
 
         return td_target
 
-    def compute_td_targets_batch(
-        self, experiences: ExperienceBatch
-    ) -> NeuralNetworkResultBatch:
-        return self.policy_network.get_q_values_batch(experiences.old_states)
+    def compute_td_targets_batch(self, experiences: ExperienceBatch) -> TdTargetBatch:
+        # td target is:
+        # reward + discounted qvalue  (if not terminal)
+        # reward + 0                  (if terminal)
+
+        # Tensor[-0.99, -0.99, ...]
+        rewards = experiences.rewards
+
+        # Tensor[[QValue * 3], [QValue * 3], ...]
+        discounted_qvalues = self.target_network.get_q_values_batch(
+            experiences.old_states
+        )
+        discounted_qvalues_tensor = discounted_qvalues.batch_output
+
+        # pick the QValue associated with the action that was taken
+        actions_chosen = experiences.actions
+
+        # Tensor[[QValue], [QValue], ...]
+        discounted_qvalues_tensor = discounted_qvalues_tensor.gather(1, actions_chosen)
+        discounted_qvalues_tensor *= self.gamma
+        discounted_qvalues_tensor[experiences.terminal] = 0
+
+        # reformat rewards tensor to same shape as discounted_qvalues_tensor
+        # Tensor[[-0.99], [-0.99], ...]
+        rewards = rewards.unsqueeze(1)
+
+        # Tensor[[TDTarget], [TDTarget], ...]
+        td_targets = rewards + discounted_qvalues_tensor
+        return TdTargetBatch(td_targets)
 
     def decay_epsilon(self, episode):
         # epsilon = epsilon_min + (epsilon_start - epsilon_min) x epsilon^-decay_rate * episode
         self.epsilon = self.epsilon_min + (
             self.epsilon_start - self.epsilon_min
         ) * math.exp(-self.decay_rate * episode)
+        print(f"Epsilon decayed to {self.epsilon}")
 
     def update_target_network(self):
         policy_network_weights = self.policy_network.state_dict()
         self.target_network.load_state_dict(policy_network_weights)
 
-    def backprop(
-        self, experiences: ExperienceBatch, td_targets: NeuralNetworkResultBatch
-    ):
+    def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.policy_network.backprop(experiences, td_targets)
 
     def train(self):
@@ -180,6 +211,7 @@ class DQN:
                         action_result.new_state,
                         action,
                         action_result.reward,
+                        action_result.terminal and action_result.won,
                     )
                     self.replay_buffer.add_experience(experience)
 

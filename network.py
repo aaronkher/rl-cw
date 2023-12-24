@@ -5,18 +5,21 @@ from typing import cast, TYPE_CHECKING, Any, Iterable
 import torch
 from torch import nn
 from torch.nn.functional import relu
+from torch.nn.utils.clip_grad import clip_grad_norm_
+
 
 
 # prevent circular import
 if TYPE_CHECKING:
     from environment import State, Environment, Action
-    from dqn import ExperienceBatch
+    from dqn import ExperienceBatch, TdTargetBatch
 else:
     Experience = object
     State = object
     Action = object
     Environment = object
     ExperienceBatch = object
+    TdTargetBatch = object
 
 
 @dataclass
@@ -34,7 +37,7 @@ class NeuralNetworkResult:
     def q_value_for_action(self, action: Action) -> float:
         return self.tensor[action].item()
 
-
+ 
 class NeuralNetworkResultBatch:
     def __init__(self, batch_output: torch.Tensor):
         # Tensor[[QValue * 3], [QValue * 3], ...]
@@ -43,6 +46,10 @@ class NeuralNetworkResultBatch:
     def __getitem__(self, index: int) -> NeuralNetworkResult:
         """Override index operator e.g. batch[0] -> NeuralNetworkResult"""
         return NeuralNetworkResult(self.batch_output[index])
+
+    def __mul__(self, other: float) -> "NeuralNetworkResultBatch":
+        """Override * operator e.g. batch * 0.9"""
+        return NeuralNetworkResultBatch(self.batch_output * other)
 
 
 class NeuralNetwork(nn.Module):
@@ -65,17 +72,18 @@ class NeuralNetwork(nn.Module):
 
     def __init__(self, env: Environment):
         super(NeuralNetwork, self).__init__()
-        self.flatten = nn.Flatten()
+
+        n = 32
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(env.observation_space_length, 128),
+            nn.Linear(env.observation_space_length, n),
             nn.ReLU(),
-            nn.Linear(128, 128),
+            nn.Linear(n, n),
             nn.ReLU(),
-            nn.Linear(128, env.action_count),
+            nn.Linear(n, env.action_count),
         )
 
-        # self.optim = torch.optim.SGD(self.parameters(), lr=1e-2, momentum=0.9)
-        self.optim = torch.optim.AdamW(self.parameters(), lr=1e-2, amsgrad=True)
+        self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
+        # self.optim = torch.optim.AdamW(self.parameters(), lr=1e-2, amsgrad=True)
 
     # do not call directly, call get_q_values() instead
     def forward(self, state: torch.Tensor) -> torch.Tensor:
@@ -132,9 +140,7 @@ class NeuralNetwork(nn.Module):
         neural_network_result = self.get_q_values(state)
         return neural_network_result.best_action()
 
-    def backprop(
-        self, experiences: ExperienceBatch, policy_net_qvalues: NeuralNetworkResultBatch
-    ):
+    def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.optim.zero_grad()
 
         # Tensor[State, State, ...]
@@ -150,14 +156,16 @@ class NeuralNetwork(nn.Module):
         actions_chosen = experiences.actions
 
         # Tensor[[QValue], [QValue], ...]
-        actions_chosen_q_values = q_values.gather(1, actions_chosen)
+        actions_chosen_q_values = q_values.gather(1, actions_chosen) # y_hat = predicted (policy network)
 
-        # Tensor[[TDTarget], [TDTarget], ...]
-        # where TDTarget is QValue
-        td_targets_tensor = policy_net_qvalues.batch_output.gather(1, actions_chosen)
+        # # Tensor[[TDTarget], [TDTarget], ...]
+        # # where TDTarget is QValue
+        td_targets_tensor = td_targets.tensor # y = actual (target network)
 
         criterion = torch.nn.MSELoss()
         loss = criterion(actions_chosen_q_values, td_targets_tensor)
         loss.backward()
+        #clip_grad_norm_(self.parameters(), 1)
 
+ 
         self.optim.step()  # gradient descent
