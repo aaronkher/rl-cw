@@ -7,6 +7,7 @@ import math
 
 from environment import Environment, Action, State, ActionResult
 from network import NeuralNetwork, NeuralNetworkResult
+from data_helper import plot_episode_data, EpisodeData
 
 
 @dataclass
@@ -118,12 +119,14 @@ class DQN:
 
     def train(self):
         timestep_C_count = 0
+        episodes = []
         for episode in range(self.episode_count):
             print(f"Episode: {episode}")
             self.environment.reset()
 
             reward_sum = 0
-
+            timestep = 0
+            terminated = False
             for timestep in range(self.timestep_count):
                 state = self.environment.current_state  # S_t
 
@@ -161,6 +164,7 @@ class DQN:
 
                 # process termination
                 if action_result.terminated:
+                    terminated = True
                     print(
                         f"Episode {episode} terminated (won) after {timestep} timestaps"
                         f" with total reward {reward_sum}"
@@ -173,6 +177,9 @@ class DQN:
                         f" with total reward {reward_sum}"
                     )
                     break
-
+            episodes.append(
+                EpisodeData(episode, reward_sum, timestep, terminated)
+            )
             self.decay_epsilon(episode)
             # print(f"Episode {episode} finished with total reward {reward_sum}")
+        plot_episode_data(episodes)
