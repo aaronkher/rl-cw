@@ -58,7 +58,7 @@ class ReplayBuffer:
     def size(self) -> int:
         return len(self.buffer)
 
-
+ 
 class DQN:
     def __init__(
         self,
