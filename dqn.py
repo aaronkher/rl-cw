@@ -18,6 +18,7 @@ class Experience:
     action: Action
     reward: float
     terminal: bool
+    td_error: float
 
 
 @dataclass
@@ -40,13 +41,18 @@ class ExperienceBatch:
         # states are already torch tensors, so we can just use torch.stack
         self.old_states = torch.stack([exp.old_state for exp in experiences])
 
+        self.new_states = torch.stack([exp.new_state for exp in experiences])
+
         # Tensor[False, False, True, ...]
         self.terminal = NeuralNetwork.tensorify([exp.terminal for exp in experiences])
 
 
+
+
 class ReplayBuffer:
-    def __init__(self, max_len=10000):
-        self.buffer = collections.deque(maxlen=max_len)
+    def __init__(self, replay_buffer_size: int,  omega: float = 0.5):
+        self.buffer = collections.deque(maxlen=replay_buffer_size)
+        self.omega = omega
 
     def add_experience(self, experience: Experience):
         self.buffer.append(experience)
@@ -54,11 +60,23 @@ class ReplayBuffer:
     def get_batch(self, batch_size: int) -> ExperienceBatch:
         experiences = random.sample(self.buffer, batch_size)
         return ExperienceBatch(experiences)
+    
+    def prioritized_replay_sampling(self, batch_size:int):
+        priorities = np.array([abs(exp.td_error) for exp in list(self.buffer)], dtype=np.float32) ** self.omega
+        probabilities = priorities / priorities.sum()
 
+        indicies = np.random.choice(len(self.buffer), size=batch_size, p=probabilities)
+        experiences = [self.buffer[idx] for idx in indicies]
+
+        return ExperienceBatch(experiences)    
+    
+    def get_buffer(self):
+        return ExperienceBatch(list(self.buffer))
+    
     def size(self) -> int:
         return len(self.buffer)
 
- 
+
 class DQN:
     def __init__(
         self,
@@ -67,9 +85,10 @@ class DQN:
         gamma: float,
         epsilon_start: float = 0.9,
         epsilon_min: float = 0.01,
-        epsilon_decay: float = 0.05,
+        epsilon_decay: float = 0.02,
         C: int = 50,
         buffer_batch_size: int = 100,
+        replay_buffer_size: int = 10000,
     ):
         self.episode_count = episode_count
         self.timestep_count = timestep_count
@@ -79,6 +98,7 @@ class DQN:
         self.decay_rate = epsilon_decay
         self.epsilon = epsilon_start
 
+
         self.gamma = gamma
         self.C = C
         self.buffer_batch_size = buffer_batch_size
@@ -86,7 +106,7 @@ class DQN:
         self.environment = Environment()
 
         # initialise replay memory
-        self.replay_buffer = ReplayBuffer()
+        self.replay_buffer = ReplayBuffer(replay_buffer_size)
         # initialise q1
         self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
         # initialise q2
@@ -179,6 +199,8 @@ class DQN:
 
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.policy_network.backprop(experiences, td_targets)
+    
+
 
     def train(self):
         episodes = []
@@ -199,12 +221,22 @@ class DQN:
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
                     action_result = self.execute_action(action)
 
-                    action_result = self.execute_action(action)
                     reward_sum += action_result.reward
 
                     # print(
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
                     # )
+
+                    experience_temp = Experience(
+                        action_result.old_state,
+                        action_result.new_state,
+                        action,
+                        action_result.reward,
+                        action_result.terminal and action_result.won,
+                        0.0 
+                    )
+
+                    td_target = self.compute_td_target(experience_temp)
 
                     experience = Experience(
                         action_result.old_state,
@@ -212,14 +244,19 @@ class DQN:
                         action,
                         action_result.reward,
                         action_result.terminal and action_result.won,
+                        td_target
                     )
+
+
                     self.replay_buffer.add_experience(experience)
 
+        
                     if self.replay_buffer.size() > self.buffer_batch_size:
-                        replay_batch = self.replay_buffer.get_batch(
-                            self.buffer_batch_size
-                        )
+                        replay_batch = self.replay_buffer.prioritized_replay_sampling(self.buffer_batch_size)
+
+                        # compute td targets for the whole of the replay batch
                         td_targets = self.compute_td_targets_batch(replay_batch)
+
 
                         self.backprop(replay_batch, td_targets)
 
@@ -240,7 +277,7 @@ class DQN:
 
                 episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 self.decay_epsilon(episode)
-                # print(f"Episode {episode} finished with total reward {reward_sum}")
+                print(f"Episode {episode} finished with total reward {reward_sum}")
 
         except KeyboardInterrupt:
             pass
