@@ -157,33 +157,19 @@ class DQN:
         return td_target
 
     def compute_td_targets_batch(self, experiences: ExperienceBatch) -> TdTargetBatch:
-        # td target is:
-        # reward + discounted qvalue  (if not terminal)
-        # reward + 0                  (if terminal)
+        rewards = experiences.rewards.unsqueeze(1)
+            
+        # using policy network for action selection
+        max_actions = self.policy_network.get_q_values_batch(experiences.new_states).batch_output.argmax(dim=1).unsqueeze(1)
+        
+        # using target network for q value calculation
+        q_values = self.target_network.get_q_values_batch(experiences.new_states).batch_output
+        
+        max_q_values = q_values.gather(1, max_actions)
+        max_q_values[experiences.terminal] = 0.0  
 
-        # Tensor[-0.99, -0.99, ...]
-        rewards = experiences.rewards
+        td_targets = rewards + (self.gamma * max_q_values)
 
-        # Tensor[[QValue * 3], [QValue * 3], ...]
-        discounted_qvalues = self.target_network.get_q_values_batch(
-            experiences.old_states
-        )
-        discounted_qvalues_tensor = discounted_qvalues.batch_output
-
-        # pick the QValue associated with the action that was taken
-        actions_chosen = experiences.actions
-
-        # Tensor[[QValue], [QValue], ...]
-        discounted_qvalues_tensor = discounted_qvalues_tensor.gather(1, actions_chosen)
-        discounted_qvalues_tensor *= self.gamma
-        discounted_qvalues_tensor[experiences.terminal] = 0
-
-        # reformat rewards tensor to same shape as discounted_qvalues_tensor
-        # Tensor[[-0.99], [-0.99], ...]
-        rewards = rewards.unsqueeze(1)
-
-        # Tensor[[TDTarget], [TDTarget], ...]
-        td_targets = rewards + discounted_qvalues_tensor
         return TdTargetBatch(td_targets)
 
     def decay_epsilon(self, episode):
@@ -235,7 +221,7 @@ class DQN:
                         action_result.terminal and action_result.won,
                         0.0 
                     )
-
+ 
                     td_target = self.compute_td_target(experience_temp)
 
                     experience = Experience(
