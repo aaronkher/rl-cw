@@ -116,12 +116,9 @@ class DQN:
 
         self.environment = Environment()
 
-        # initialise replay memory
-        self.replay_buffer = ReplayBuffer(replay_buffer_size)
-        # initialise q1
-        self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
-        # initialise q2
-        self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
+        self.replay_buffer = ReplayBuffer()
+        self.policy_network = NeuralNetwork(self.environment) # q1
+        self.target_network = NeuralNetwork(self.environment) # q2
         # copy q2 to q1
         self.policy_network.load_state_dict(self.target_network.state_dict())
 
