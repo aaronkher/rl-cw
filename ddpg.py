@@ -161,19 +161,27 @@ class DDPG:
     #     print(f"Epsilon decayed to {self.epsilon}")
 
     def update_target_networks(self):
-        # update target critic network
-        torch.add(
-            torch.mul(self.critic_network.parameter(), self.beta),
-            torch.mul(self.target_critic_network.parameter(), 1-self.beta),
-            out=self.target_critic_network.parameter()
-        )
+        target_critic_weights = self.target_critic_network.state_dict()
+        critic_weights = self.critic_network.state_dict()
 
-        # update target actor network
-        torch.add(
-            torch.mul(self.actor_network.parameter(), self.beta),
-            torch.mul(self.target_actor_network.parameter(), 1-self.beta),
-            out=self.target_actor_network.parameter()
-        )
+        for key in target_critic_weights:
+            target_critic_weights[key] = (
+                self.target_network_learning_rate * critic_weights[key] +
+                (1 - self.target_network_learning_rate) * target_critic_weights[key]
+            )
+
+        self.target_critic_network.load_state_dict(target_critic_weights)
+
+        target_actor_weights = self.target_actor_network.state_dict()
+        actor_weights = self.actor_network.state_dict()
+
+        for key in target_actor_weights:
+            target_actor_weights[key] = (
+                self.target_network_learning_rate * actor_weights[key] +
+                (1 - self.target_network_learning_rate) * target_actor_weights[key]
+            )
+
+        self.target_actor_network.load_state_dict(target_actor_weights)
 
     def backprop_critic(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.critic_network.backprop(experiences, td_targets)
