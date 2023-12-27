@@ -72,14 +72,9 @@ class NeuralNetwork(nn.Module):
     def __init__(self, env: Environment):
         super(NeuralNetwork, self).__init__()
 
-        n = 128
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(env.observation_space_length, n),
-            nn.ReLU(),
-            nn.Linear(n, n),
-            nn.ReLU(),
-            nn.Linear(n, env.action_count),
-        )
+        self.layer1 = nn.Linear(env.observation_space_length, 128)
+        self.layer2 = nn.Linear(128, 128)
+        self.layer3 = nn.Linear(128, env.action_count)
 
         # self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
         self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
@@ -96,7 +91,9 @@ class NeuralNetwork(nn.Module):
             torch.Tensor: a tensor of length 3 (one q-value for each action)
         """
 
-        return self.linear_relu_stack(state)
+        x = torch.nn.functional.relu(self.layer1(state))
+        x = torch.nn.functional.relu(self.layer2(x))
+        return self.layer3(x)
 
     # need to return the q value for an action AND
     # return the corresponding action so DQN class knows what to use
