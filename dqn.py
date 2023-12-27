@@ -7,7 +7,7 @@ import torch
 import numpy as np
 
 from environment import Environment, Action, State, ActionResult
-from network import NeuralNetwork, NeuralNetworkResult, NeuralNetworkResultBatch
+from dqn_network import NeuralNetwork, NeuralNetworkResult, NeuralNetworkResultBatch
 from data_helper import plot_episode_data, EpisodeData
 
 
@@ -197,7 +197,6 @@ class DQN:
                     state = self.environment.current_state  # S_t
 
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
-                    action_result = self.execute_action(action)
 
                     action_result = self.execute_action(action)
                     reward_sum += action_result.reward

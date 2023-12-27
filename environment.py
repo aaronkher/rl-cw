@@ -3,10 +3,12 @@ from dataclasses import dataclass
 import torch
 
 import gymnasium
+import numpy as np
+from gymnasium.spaces import Box
 
-from network import NeuralNetwork
+from dqn_network import NeuralNetwork
 
-Action = int
+Action = int | float
 State = torch.Tensor
 
 
@@ -21,9 +23,9 @@ class ActionResult:
 
 
 class Environment:
-    def __init__(self):
+    def __init__(self, environment_name: str = "MountainCar-v0"):
         # self.env = gymnasium.make("MountainCar-v0", render_mode="human")
-        self.env = gymnasium.make("MountainCar-v0")
+        self.env = gymnasium.make(environment_name)
 
         self.reset()
         self.last_action_taken: ActionResult
@@ -35,7 +37,9 @@ class Environment:
 
     @property
     def action_count(self) -> int:
-        # 3 for acrobot
+        if isinstance(self.env.action_space, Box):
+            return 1
+        # 3 for mountain car
         return len(self.action_list)
 
     @property
