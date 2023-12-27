@@ -19,7 +19,7 @@ class ExperienceBatch:
         self.size = len(experiences)
 
         # Tensor[[0], [2], [1], ...]
-        self.actions = NeuralNetwork.tensorify([exp.action for exp in experiences])
+        self.actions = NeuralNetwork.tensorify([[exp.action] for exp in experiences])
 
         # Tensor[-0.99, -0.99, ...]
         self.rewards = NeuralNetwork.tensorify([exp.reward for exp in experiences])
@@ -139,10 +139,10 @@ class DDPG:
             experiences.old_states,
             experiences.actions
         )
-        qvalues_tensor = qvalues.batch_output
+        # qvalues_tensor = qvalues.batch_output
 
         # Tensor[QValue, QValue, ...]
-        discounted_qvalues_tensor = qvalues_tensor * self.gamma
+        discounted_qvalues_tensor = qvalues * self.gamma
         discounted_qvalues_tensor[experiences.terminal] = 0
 
         # # reformat rewards tensor to same shape as discounted_qvalues_tensor

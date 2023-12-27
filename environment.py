@@ -49,7 +49,10 @@ class Environment:
 
     def take_action(self, action: Action) -> ActionResult:
         old_state = self.current_state
-        (new_state, _reward, terminated, truncated, info) = self.env.step(action)
+        if isinstance(action, float): # for continuous action spaces
+            (new_state, _reward, terminated, truncated, info) = self.env.step([action])
+        else:
+            (new_state, _reward, terminated, truncated, info) = self.env.step(action)
         new_state = NeuralNetwork.tensorify(new_state)
         reward = float(_reward)
 

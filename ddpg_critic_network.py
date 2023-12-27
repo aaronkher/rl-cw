@@ -86,24 +86,22 @@ class DDPGCriticNetwork(nn.Module):
         # forward pass actor network to get one action value for each state passed in
         return self.critic_network(state)
 
-    def get_q_value_batch(self, states: torch.Tensor, action: torch.Tensor) -> DDPGCriticNetworkResultBatch:
+    def get_q_value_batch(self, states: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:
         # states = Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
 
-        # action = Tensor[Action, Action, ...]
-
-        batch_output = self(torch.cat((states, action), dim=1))
+        batch_output = self(torch.cat((states, actions), dim=1))
         # batch_output = Tensor[QValue, QValue, ...]
         # where QValue is float
 
-        return DDPGCriticNetworkResultBatch(batch_output)
+        return batch_output
 
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.optim.zero_grad()
 
         # Tensor[QValue, QValue, ...]
         # where QValue is float
-        q_values = self(experiences.old_states)
+        q_values = self(torch.cat((experiences.old_states, experiences.actions), dim=1)) # NEED TO PASS IN ACTIONS
 
         # # Tensor[[TDTarget], [TDTarget], ...]
         # # where TDTarget is QValue
