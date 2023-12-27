@@ -58,21 +58,27 @@ class ReplayBuffer:
     def get_batch(self, batch_size: int) -> ExperienceBatch:
         experiences = random.sample(self.buffer, batch_size)
         return ExperienceBatch(experiences)
-    
+
     """
     Samples experiences proportional to the magnitude of td-error.
     Large TD error, greater probability of being sampled.
     """
-    def prioritized_replay_sampling(self, batch_size:int):
-        c = 0.01 # small constant 
-        
+
+    def prioritized_replay_sampling(self, batch_size: int):
+        c = 0.01  # small constant
+
         # prioritiy of experience is proportional to the magnitude of the td-err
-        priorities = np.array([abs(exp.td_error) + c for exp in list(self.buffer)], dtype=np.float32) ** self.omega
-        
+        priorities = (
+            np.array(
+                [abs(exp.td_error) + c for exp in list(self.buffer)], dtype=np.float32
+            )
+            ** self.omega
+        )
+
         # w = omega
         # k = buffer size
         # P(i)= p_i^w / ∑_k p_k^w
-        probabilities = priorities / priorities.sum() 
+        probabilities = priorities / priorities.sum()
 
         indicies = np.random.choice(len(self.buffer), size=batch_size, p=probabilities)
         experiences = [self.buffer[idx] for idx in indicies]
@@ -114,8 +120,8 @@ class DQN:
         self.environment = Environment()
 
         self.replay_buffer = ReplayBuffer()
-        self.policy_network = NeuralNetwork(self.environment) # q1
-        self.target_network = NeuralNetwork(self.environment) # q2
+        self.policy_network = NeuralNetwork(self.environment)  # q1
+        self.target_network = NeuralNetwork(self.environment)  # q2
         # copy q2 to q1
         self.target_network.load_state_dict(self.policy_network.state_dict())
 
@@ -143,13 +149,13 @@ class DQN:
         neural_network_result = self.target_network.get_q_values(state)
         return neural_network_result.q_value_for_action(action)
 
-
     """
     Double DQN: Yt ≡ Rt+1+γQ(St+1, argmax aQ(St+1, a; θt), θ−t)
     from: https://arxiv.org/pdf/1509.06461.pdf
     θt = policy network (in our case)
     θ−t = target network (in our case)
     """
+
     def compute_td_target(self, reward: float, new_state: State) -> float:
         # TD Target is the last reward + the expected reward of the
         # best action in the next state, discounted.
@@ -161,7 +167,7 @@ class DQN:
         if self.environment.is_terminated:
             td_target = last_reward
         else:
-            # policy network (θt) used here to get best action 
+            # policy network (θt) used here to get best action
             action = self.get_best_action(current_state)
 
             # target network (θ−t) used here to calculate q value for action
@@ -177,6 +183,7 @@ class DQN:
     θt = policy network (in our case)
     θ−t = target network (in our case)
     """
+
     def compute_td_targets_batch(self, experiences: ExperienceBatch) -> TdTargetBatch:
         # Tensor[[Reward], [Reward], ...]
         rewards = experiences.rewards.unsqueeze(1)  # R_t+1
@@ -254,16 +261,9 @@ class DQN:
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
                     # )
 
-                    experience_temp = Experience(
-                        action_result.old_state,
-                        action_result.new_state,
-                        action,
-                        action_result.reward,
-                        action_result.terminal and action_result.won,
-                        0.0,
+                    td_target = self.compute_td_target(
+                        action_result.reward, action_result.new_state
                     )
-
-                    td_target = self.compute_td_target(experience_temp)
 
                     experience = Experience(
                         action_result.old_state,
