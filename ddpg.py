@@ -110,13 +110,14 @@ class DDPG:
         # TODO come up with a not stupid way of doing this
         # noise = np.random.uniform(-1, 1)
 
-        noise = np.random.normal(0, 0.1) # mean 0, std 0.1
+        noise = np.random.normal(0, 0.3) # mean 0, std 0.3
 
         action = self.get_action_according_to_policy(state)
         action += noise
 
         # clamp action between -1 and 1
         action = min(max(action, -1.0), 1.0)
+
         return action
 
     def execute_action(self, action: Action) -> ActionResult:
@@ -147,10 +148,11 @@ class DDPG:
 
         # # reformat rewards tensor to same shape as discounted_qvalues_tensor
         # # Tensor[[-0.99], [-0.99], ...]
-        # rewards = rewards.unsqueeze(1) # don't think i need this anymore so commeting
+        rewards = rewards.unsqueeze(1)
 
         # Tensor[[TDTarget], [TDTarget], ...]
         td_targets = rewards + discounted_qvalues_tensor
+
         return TdTargetBatch(td_targets)
 
     # def decay_epsilon(self, episode):

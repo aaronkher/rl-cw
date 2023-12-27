@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     ddpg = DDPG(
         episode_count=1000,
-        timestep_count=100,
+        timestep_count=1000,
         gamma=0.9,
         beta=0.9,
         buffer_batch_size=100,

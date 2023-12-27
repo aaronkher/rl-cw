@@ -25,6 +25,7 @@ class ActionResult:
 class Environment:
     def __init__(self, environment_name: str = "MountainCar-v0"):
         # self.env = gymnasium.make("MountainCar-v0", render_mode="human")
+        # self.env = gymnasium.make(environment_name, render_mode="human")
         self.env = gymnasium.make(environment_name)
 
         self.reset()
@@ -56,8 +57,8 @@ class Environment:
         new_state = NeuralNetwork.tensorify(new_state)
         reward = float(_reward)
 
-        (x_axis_position, velocity) = new_state
-        reward += abs(float(velocity)) / 0.07 / 2
+        # (x_axis_position, velocity) = new_state
+        # reward += abs(float(velocity)) / 0.07 / 2
 
         # clamp reward between -1 and 1
         # reward = min(max(reward, -1.0), 1.0)
