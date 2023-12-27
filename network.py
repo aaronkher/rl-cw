@@ -8,7 +8,6 @@ from torch.nn.functional import relu
 from torch.nn.utils.clip_grad import clip_grad_value_
 
 
-
 # prevent circular import
 if TYPE_CHECKING:
     from environment import State, Environment, Action
@@ -37,7 +36,7 @@ class NeuralNetworkResult:
     def q_value_for_action(self, action: Action) -> float:
         return self.tensor[action].item()
 
- 
+
 class NeuralNetworkResultBatch:
     def __init__(self, batch_output: torch.Tensor):
         # Tensor[[QValue * 3], [QValue * 3], ...]
@@ -141,8 +140,6 @@ class NeuralNetwork(nn.Module):
         return neural_network_result.best_action()
 
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
-        self.optim.zero_grad()
-
         # Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
         experience_states = experiences.old_states
@@ -156,16 +153,19 @@ class NeuralNetwork(nn.Module):
         actions_chosen = experiences.actions
 
         # Tensor[[QValue], [QValue], ...]
-        actions_chosen_q_values = q_values.gather(1, actions_chosen) # y_hat = predicted (policy network)
+        actions_chosen_q_values = q_values.gather(
+            1, actions_chosen
+        )  # y_hat = predicted (policy network)
 
         # # Tensor[[TDTarget], [TDTarget], ...]
         # # where TDTarget is QValue
-        td_targets_tensor = td_targets.tensor # y = actual (target network)
+        td_targets_tensor = td_targets.tensor  # y = actual (target network)
 
-        criterion = torch.nn.MSELoss()
+        criterion = torch.nn.SmoothL1Loss()
         loss = criterion(actions_chosen_q_values, td_targets_tensor)
-        loss.backward()
-        clip_grad_value_(self.parameters(), 100)
 
- 
+        self.optim.zero_grad()
+        loss.backward()
+
+        clip_grad_value_(self.parameters(), 100)
         self.optim.step()  # gradient descent

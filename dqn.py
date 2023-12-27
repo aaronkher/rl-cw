@@ -59,7 +59,7 @@ class ReplayBuffer:
     def size(self) -> int:
         return len(self.buffer)
 
- 
+
 class DQN:
     def __init__(
         self,
@@ -211,8 +211,6 @@ class DQN:
                     state = self.environment.current_state  # S_t
 
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
-                    action_result = self.execute_action(action)
-
                     action_result = self.execute_action(action)
                     reward_sum += action_result.reward
 

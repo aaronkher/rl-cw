@@ -46,7 +46,7 @@ class Environment:
     def take_action(self, action: Action) -> ActionResult:
         old_state = self.current_state
         (new_state, _reward, terminated, truncated, info) = self.env.step(action)
-        new_state = NeuralNetwork.tensorify(new_state)
+        new_state = torch.from_numpy(new_state).to(NeuralNetwork.device())
         reward = float(_reward)
 
         # clamp reward between -1 and 1
