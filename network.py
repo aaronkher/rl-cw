@@ -5,7 +5,7 @@ from typing import cast, TYPE_CHECKING, Any, Iterable
 import torch
 from torch import nn
 from torch.nn.functional import relu
-from torch.nn.utils.clip_grad import clip_grad_norm_
+from torch.nn.utils.clip_grad import clip_grad_value_
 
 
 
@@ -73,7 +73,7 @@ class NeuralNetwork(nn.Module):
     def __init__(self, env: Environment):
         super(NeuralNetwork, self).__init__()
 
-        n = 32
+        n = 128
         self.linear_relu_stack = nn.Sequential(
             nn.Linear(env.observation_space_length, n),
             nn.ReLU(),
@@ -82,8 +82,8 @@ class NeuralNetwork(nn.Module):
             nn.Linear(n, env.action_count),
         )
 
-        self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
-        # self.optim = torch.optim.AdamW(self.parameters(), lr=1e-2, amsgrad=True)
+        # self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
+        self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
 
     # do not call directly, call get_q_values() instead
     def forward(self, state: torch.Tensor) -> torch.Tensor:
@@ -165,7 +165,7 @@ class NeuralNetwork(nn.Module):
         criterion = torch.nn.MSELoss()
         loss = criterion(actions_chosen_q_values, td_targets_tensor)
         loss.backward()
-        #clip_grad_norm_(self.parameters(), 1)
+        clip_grad_value_(self.parameters(), 100)
 
  
         self.optim.step()  # gradient descent

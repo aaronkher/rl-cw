@@ -39,6 +39,7 @@ class ExperienceBatch:
         # Tensor[State, State, ...]
         # states are already torch tensors, so we can just use torch.stack
         self.old_states = torch.stack([exp.old_state for exp in experiences])
+        self.new_states = torch.stack([exp.new_state for exp in experiences])
 
         # Tensor[False, False, True, ...]
         self.terminal = NeuralNetwork.tensorify([exp.terminal for exp in experiences])
@@ -92,7 +93,7 @@ class DQN:
         # initialise q2
         self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
         # copy q2 to q1
-        self.policy_network.load_state_dict(self.target_network.state_dict())
+        self.target_network.load_state_dict(self.policy_network.state_dict())
 
     def get_best_action(self, state: State) -> Action:
         return self.policy_network.get_best_action(state)
@@ -145,9 +146,10 @@ class DQN:
         rewards = experiences.rewards
 
         # Tensor[[QValue * 3], [QValue * 3], ...]
-        discounted_qvalues = self.target_network.get_q_values_batch(
-            experiences.old_states
-        )
+        with torch.no_grad():
+            discounted_qvalues = self.target_network.get_q_values_batch(
+                experiences.new_states
+            )
         discounted_qvalues_tensor = discounted_qvalues.batch_output
 
         # pick the QValue associated with the action that was taken
@@ -174,8 +176,20 @@ class DQN:
         print(f"Epsilon decayed to {self.epsilon}")
 
     def update_target_network(self):
-        policy_network_weights = self.policy_network.state_dict()
-        self.target_network.load_state_dict(policy_network_weights)
+        # policy_network_weights = self.policy_network.state_dict()
+        # self.target_network.load_state_dict(policy_network_weights)
+
+        # tmp: update network using weighted average of both networks
+        target_net_state = self.target_network.state_dict()
+        policy_net_state = self.policy_network.state_dict()
+        tau = 0.05
+
+        for key in target_net_state:
+            target_net_state[key] = (
+                tau * policy_net_state[key] + (1 - tau) * target_net_state[key]
+            )
+
+        self.target_network.load_state_dict(target_net_state)
 
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.policy_network.backprop(experiences, td_targets)
