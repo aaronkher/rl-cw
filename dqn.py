@@ -61,9 +61,20 @@ class ReplayBuffer:
         experiences = random.sample(self.buffer, batch_size)
         return ExperienceBatch(experiences)
     
+    """
+    Samples experiences proportional to the magnitude of td-error.
+    Large TD error, greater probability of being sampled.
+    """
     def prioritized_replay_sampling(self, batch_size:int):
-        priorities = np.array([abs(exp.td_error) for exp in list(self.buffer)], dtype=np.float32) ** self.omega
-        probabilities = priorities / priorities.sum()
+        c = 0.01 # small constant 
+        
+        # prioritiy of experience is proportional to the magnitude of the td-err
+        priorities = np.array([abs(exp.td_error) + c for exp in list(self.buffer)], dtype=np.float32) ** self.omega
+        
+        # w = omega
+        # k = buffer size
+        # P(i)= p_i^w / ∑_k p_k^w
+        probabilities = priorities / priorities.sum() 
 
         indicies = np.random.choice(len(self.buffer), size=batch_size, p=probabilities)
         experiences = [self.buffer[idx] for idx in indicies]
@@ -138,31 +149,47 @@ class DQN:
         neural_network_result = self.target_network.get_q_values(state)
         return neural_network_result.q_value_for_action(action)
 
-    def compute_td_target(self, experience: Experience) -> float:
+
+    """
+    Double DQN: Yt ≡ Rt+1+γQ(St+1, argmax aQ(St+1, a; θt), θ−t)
+    from: https://arxiv.org/pdf/1509.06461.pdf
+    θt = policy network (in our case)
+    θ−t = target network (in our case)
+    """
+    def compute_td_target(self, reward: float, new_state: State) -> float:
         # TD Target is the last reward + the expected reward of the
         # best action in the next state, discounted.
 
         # the reward and state after the last action was taken:
-        last_reward = experience.reward  # R_t
-        current_state = experience.new_state  # S_t+1
+        last_reward = reward  # R_t
+        current_state = new_state  # S_t+1
 
         if self.environment.is_terminated:
             td_target = last_reward
         else:
+            # policy network (θt) used here to get best action 
             action = self.get_best_action(current_state)
+
+            # target network (θ−t) used here to calculate q value for action
             td_target = last_reward + self.gamma * self.get_q_value_for_action(
                 current_state, action
             )
 
         return td_target
 
+    """
+    Double DQN: Yt ≡ Rt+1+γQ(St+1, argmax aQ(St+1, a; θt), θ−t)
+    from: https://arxiv.org/pdf/1509.06461.pdf
+    θt = policy network (in our case)
+    θ−t = target network (in our case)
+    """
     def compute_td_targets_batch(self, experiences: ExperienceBatch) -> TdTargetBatch:
         rewards = experiences.rewards.unsqueeze(1)
             
-        # using policy network for action selection
+        # using policy network for action selection (θt)
         max_actions = self.policy_network.get_q_values_batch(experiences.new_states).batch_output.argmax(dim=1).unsqueeze(1)
         
-        # using target network for q value calculation
+        # using target network for q value calculation (θ−t)
         q_values = self.target_network.get_q_values_batch(experiences.new_states).batch_output
         
         max_q_values = q_values.gather(1, max_actions)
@@ -212,17 +239,8 @@ class DQN:
                     # print(
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
                     # )
-
-                    experience_temp = Experience(
-                        action_result.old_state,
-                        action_result.new_state,
-                        action,
-                        action_result.reward,
-                        action_result.terminal and action_result.won,
-                        0.0 
-                    )
  
-                    td_target = self.compute_td_target(experience_temp)
+                    td_target = self.compute_td_target(action_result.reward, action_result.new_state)
 
                     experience = Experience(
                         action_result.old_state,
