@@ -39,7 +39,7 @@ class ExperienceBatch:
         # Tensor[State, State, ...]
         # states are already torch tensors, so we can just use torch.stack
         self.old_states = torch.stack([exp.old_state for exp in experiences])
-        self.new_states = torch.stack([exp.new_state for exp in experiences])
+        self.new_states = torch.stack([exp.new_state for exp in experiences if exp.new_state is not None])
 
         # Tensor[False, False, True, ...]
         self.terminal = NeuralNetwork.tensorify([exp.terminal for exp in experiences])
@@ -148,9 +148,7 @@ class DQN:
         rewards = experiences.rewards
 
         non_final_mask = ~experiences.terminal
-        non_final_next_states = torch.stack(
-            [s for (s, t) in zip(experiences.new_states, experiences.terminal) if not t]
-        )
+        non_final_next_states = experiences.new_states
 
         next_state_values = torch.zeros(experiences.size, device=NeuralNetwork.device())
 
@@ -219,7 +217,7 @@ class DQN:
                         action_result.new_state,
                         action,
                         action_result.reward,
-                        action_result.terminal and action_result.won,
+                        terminal=action_result.terminal and not action_result.won,
                     )
                     self.replay_buffer.add_experience(experience)
 
