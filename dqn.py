@@ -135,7 +135,7 @@ class DQN:
         # tmp: update network using weighted average of both networks
         target_net_state = self.target_network.state_dict()
         policy_net_state = self.policy_network.state_dict()
-        tau = 0.05
+        tau = 0.005
 
         for key in target_net_state:
             target_net_state[key] = (
