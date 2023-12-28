@@ -2,9 +2,9 @@ import random
 from dataclasses import dataclass
 import math
 import collections
-import typing
 
 import torch
+import numpy as np
 
 from environment import Environment, Action, State, ActionResult
 from network import NeuralNetwork, NeuralNetworkResult, NeuralNetworkResultBatch
@@ -26,32 +26,38 @@ class TdTargetBatch:
     tensor: torch.Tensor
 
 
-Transition = collections.namedtuple(
-    "Transition", ("state", "action", "next_state", "reward")
-)
+class ExperienceBatch:
+    def __init__(self, experiences: list[Experience]):
+        self.size = len(experiences)
 
-TransitionBatch = list[Transition]
+        # Tensor[[0], [2], [1], ...]
+        self.actions = NeuralNetwork.tensorify([[exp.action] for exp in experiences])
+
+        # Tensor[-0.99, -0.99, ...]
+        self.rewards = NeuralNetwork.tensorify([exp.reward for exp in experiences])
+
+        # Tensor[State, State, ...]
+        # states are already torch tensors, so we can just use torch.stack
+        self.old_states = torch.stack([exp.old_state for exp in experiences])
+        self.new_states = torch.stack([exp.new_state for exp in experiences if exp.new_state is not None])
+
+        # Tensor[False, False, True, ...]
+        self.terminal = NeuralNetwork.tensorify([exp.terminal for exp in experiences])
 
 
-class ReplayMemory(object):
-    def __init__(self, capacity: int):
-        self.memory: typing.Deque[Transition] = collections.deque([], maxlen=capacity)
+class ReplayBuffer:
+    def __init__(self, max_len=10000):
+        self.buffer = collections.deque(maxlen=max_len)
 
-    def push(
-        self,
-        state: State,
-        action: Action,
-        next_state: State | None,
-        reward: torch.Tensor,
-    ):
-        """Save a transition"""
-        self.memory.append(Transition(state, action, next_state, reward))
+    def add_experience(self, experience: Experience):
+        self.buffer.append(experience)
 
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
+    def get_batch(self, batch_size: int) -> ExperienceBatch:
+        experiences = random.sample(self.buffer, batch_size)
+        return ExperienceBatch(experiences)
 
-    def __len__(self):
-        return len(self.memory)
+    def size(self) -> int:
+        return len(self.buffer)
 
 
 class DQN:
@@ -80,7 +86,7 @@ class DQN:
 
         self.environment = Environment()
 
-        self.replay_buffer = ReplayMemory(10000)
+        self.replay_buffer = ReplayBuffer()
         self.policy_network = NeuralNetwork(self.environment).to(
             NeuralNetwork.device()
         )  # q1
@@ -97,8 +103,7 @@ class DQN:
     def get_action_using_epsilon_greedy(self, state: State):
         if random.random() < self.epsilon:
             # pick random action
-            action_int = random.choice(self.environment.action_list)
-            action = NeuralNetwork.tensorify([[action_int]])
+            action = random.choice(self.environment.action_list)
         else:
             # pick best action
             action = self.get_best_action(state)
@@ -134,6 +139,29 @@ class DQN:
 
         return td_target
 
+    def compute_td_targets_batch(self, experiences: ExperienceBatch) -> TdTargetBatch:
+        # td target is:
+        # reward + discounted qvalue  (if not terminal)
+        # reward + 0                  (if terminal)
+
+        # Tensor[-0.99, -0.99, ...]
+        rewards = experiences.rewards
+
+        non_final_mask = ~experiences.terminal
+        non_final_next_states = experiences.new_states
+
+        next_state_values = torch.zeros(experiences.size, device=NeuralNetwork.device())
+
+        # Tensor[[QValue * 3], [QValue * 3], ...]
+        with torch.no_grad():
+            next_state_values[non_final_mask] = self.target_network(non_final_next_states).max(1).values
+
+        expected_state_action_values = (next_state_values * self.gamma) + rewards
+
+        # Tensor[[TDTarget], [TDTarget], ...]
+        td_targets = expected_state_action_values.unsqueeze(1)
+        return TdTargetBatch(td_targets)
+
     def decay_epsilon(self):
         self.epsilon = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * (
             math.exp(-1.0 * self.steps_taken / self.decay_rate)
@@ -156,8 +184,8 @@ class DQN:
 
         self.target_network.load_state_dict(target_net_state)
 
-    def backprop(self, transitions: TransitionBatch):
-        self.policy_network.backprop(transitions, self)
+    def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
+        self.policy_network.backprop(experiences, td_targets)
 
     def train(self):
         episodes = []
@@ -174,32 +202,32 @@ class DQN:
 
                 for timestep in range(self.timestep_count):
                     state = self.environment.current_state  # S_t
-                    assert state is not None
 
                     self.decay_epsilon()
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
                     action_result = self.execute_action(action)
-                    reward_sum += action_result.reward.item()
+                    reward_sum += action_result.reward
 
                     # print(
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
                     # )
 
-                    if action_result.terminal and action_result.won:
-                        next_state = None
-                    else:
-                        next_state = action_result.new_state
-
-                    self.replay_buffer.push(
+                    experience = Experience(
                         action_result.old_state,
-                        action_result.action,
-                        next_state,
+                        action_result.new_state,
+                        action,
                         action_result.reward,
+                        terminal=action_result.terminal and not action_result.won,
                     )
+                    self.replay_buffer.add_experience(experience)
 
-                    if len(self.replay_buffer) > self.buffer_batch_size:
-                        replay_batch = self.replay_buffer.sample(self.buffer_batch_size)
-                        self.backprop(replay_batch)
+                    if self.replay_buffer.size() > self.buffer_batch_size:
+                        replay_batch = self.replay_buffer.get_batch(
+                            self.buffer_batch_size
+                        )
+
+                        td_targets = self.compute_td_targets_batch(replay_batch)
+                        self.backprop(replay_batch, td_targets)
 
                     timestep_C_count += 1
                     if timestep_C_count == self.C:

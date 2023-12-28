@@ -11,20 +11,14 @@ from torch.nn.utils.clip_grad import clip_grad_value_
 # prevent circular import
 if TYPE_CHECKING:
     from environment import State, Environment, Action
-    from dqn import TransitionBatch, TdTargetBatch, DQN, Transition
+    from dqn import ExperienceBatch, TdTargetBatch
 else:
     Experience = object
     State = object
     Action = object
     Environment = object
-    TransitionBatch = object
+    ExperienceBatch = object
     TdTargetBatch = object
-    DQN = object
-
-    import collections
-    Transition = collections.namedtuple(
-        "Transition", ("state", "action", "next_state", "reward")
-    )
 
 
 @dataclass
@@ -32,7 +26,9 @@ class NeuralNetworkResult:
     tensor: torch.Tensor
 
     def best_action(self) -> Action:
-        return self.tensor.max(1).indices.view(1, 1)
+        argmax: torch.Tensor = self.tensor.argmax()  # this is a tensor with one item
+        best_action = argmax.item()
+        return cast(Action, best_action)
 
     def best_action_q_value(self) -> float:
         return self.tensor[self.best_action()].item()
@@ -140,54 +136,18 @@ class NeuralNetwork(nn.Module):
         neural_network_result = self.get_q_values(state)
         return neural_network_result.best_action()
 
-    def backprop(self, transitions: TransitionBatch, dqn: DQN):
-        # state_action_values = self(experiences.old_states).gather(
-        #     1, experiences.actions
-        # )
+    def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
+        state_action_values = self(experiences.old_states).gather(1, experiences.actions)
 
-        # # # Tensor[[TDTarget], [TDTarget], ...]
-        # # # where TDTarget is QValue
-        # td_targets_tensor = td_targets.tensor  # y = actual (target network)
+        # # Tensor[[TDTarget], [TDTarget], ...]
+        # # where TDTarget is QValue
+        td_targets_tensor = td_targets.tensor  # y = actual (target network)
 
-        # criterion = torch.nn.SmoothL1Loss()
-        # loss = criterion(state_action_values, td_targets_tensor)
-
-        # self.optim.zero_grad()
-        # loss.backward()
-
-        # clip_grad_value_(self.parameters(), 100)
-        # self.optim.step()  # gradient descent
-
-        device = self.device()
-        batch = Transition(*zip(*transitions))
-
-        non_final_mask = torch.tensor(
-            tuple(map(lambda s: s is not None, batch.next_state)),
-            device=device,
-            dtype=torch.bool,
-        )
-        non_final_next_states = torch.cat(
-            [s for s in batch.next_state if s is not None]
-        )
-        state_batch = torch.cat(batch.state)
-        action_batch = torch.cat(batch.action)
-        reward_batch = torch.cat(batch.reward)
-
-        state_action_values = self(state_batch).gather(1, action_batch)
-
-        next_state_values = torch.zeros(dqn.buffer_batch_size, device=device)
-        with torch.no_grad():
-            next_state_values[non_final_mask] = (
-                dqn.target_network(non_final_next_states).max(1).values
-            )
-
-        expected_state_action_values = (next_state_values * dqn.gamma) + reward_batch
-
-        criterion = nn.SmoothL1Loss()
-        loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
+        criterion = torch.nn.SmoothL1Loss()
+        loss = criterion(state_action_values, td_targets_tensor)
 
         self.optim.zero_grad()
         loss.backward()
 
         clip_grad_value_(self.parameters(), 100)
-        self.optim.step()
+        self.optim.step()  # gradient descent
