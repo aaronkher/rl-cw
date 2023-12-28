@@ -8,7 +8,7 @@ import numpy as np
 
 from environment import Environment, Action, State, ActionResult
 from network import NeuralNetwork, NeuralNetworkResult, NeuralNetworkResultBatch
-from data_helper import plot_episode_data, EpisodeData
+from data_helper import plot_episode_data, EpisodeData, create_figure
 
 
 @dataclass
@@ -47,10 +47,8 @@ class ExperienceBatch:
         self.terminal = NeuralNetwork.tensorify([exp.terminal for exp in experiences])
 
 
-
-
 class ReplayBuffer:
-    def __init__(self, replay_buffer_size: int,  omega: float = 0.5):
+    def __init__(self, replay_buffer_size: int, omega: float = 0.5):
         self.buffer = collections.deque(maxlen=replay_buffer_size)
         self.omega = omega
 
@@ -60,30 +58,36 @@ class ReplayBuffer:
     def get_batch(self, batch_size: int) -> ExperienceBatch:
         experiences = random.sample(self.buffer, batch_size)
         return ExperienceBatch(experiences)
-    
+
     """
     Samples experiences proportional to the magnitude of td-error.
     Large TD error, greater probability of being sampled.
     """
-    def prioritized_replay_sampling(self, batch_size:int):
-        c = 0.01 # small constant 
-        
+
+    def prioritized_replay_sampling(self, batch_size: int):
+        c = 0.01  # small constant
+
         # prioritiy of experience is proportional to the magnitude of the td-err
-        priorities = np.array([abs(exp.td_error) + c for exp in list(self.buffer)], dtype=np.float32) ** self.omega
-        
+        priorities = (
+            np.array(
+                [abs(exp.td_error) + c for exp in list(self.buffer)], dtype=np.float32
+            )
+            ** self.omega
+        )
+
         # w = omega
         # k = buffer size
         # P(i)= p_i^w / ∑_k p_k^w
-        probabilities = priorities / priorities.sum() 
+        probabilities = priorities / priorities.sum()
 
         indicies = np.random.choice(len(self.buffer), size=batch_size, p=probabilities)
         experiences = [self.buffer[idx] for idx in indicies]
 
-        return ExperienceBatch(experiences)    
-    
+        return ExperienceBatch(experiences)
+
     def get_buffer(self):
         return ExperienceBatch(list(self.buffer))
-    
+
     def size(self) -> int:
         return len(self.buffer)
 
@@ -109,21 +113,17 @@ class DQN:
         self.decay_rate = epsilon_decay
         self.epsilon = epsilon_start
 
-
         self.gamma = gamma
         self.C = C
         self.buffer_batch_size = buffer_batch_size
 
         self.environment = Environment()
 
-        # initialise replay memory
-        self.replay_buffer = ReplayBuffer(replay_buffer_size)
-        # initialise q1
-        self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
-        # initialise q2
-        self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
+        self.replay_buffer = ReplayBuffer(replay_buffer_size=replay_buffer_size)
+        self.policy_network = NeuralNetwork(self.environment)  # q1
+        self.target_network = NeuralNetwork(self.environment)  # q2
         # copy q2 to q1
-        self.policy_network.load_state_dict(self.target_network.state_dict())
+        self.target_network.load_state_dict(self.policy_network.state_dict())
 
     def get_best_action(self, state: State) -> Action:
         return self.policy_network.get_best_action(state)
@@ -149,13 +149,13 @@ class DQN:
         neural_network_result = self.target_network.get_q_values(state)
         return neural_network_result.q_value_for_action(action)
 
-
     """
     Double DQN: Yt ≡ Rt+1+γQ(St+1, argmax aQ(St+1, a; θt), θ−t)
     from: https://arxiv.org/pdf/1509.06461.pdf
     θt = policy network (in our case)
     θ−t = target network (in our case)
     """
+
     def compute_td_target(self, reward: float, new_state: State) -> float:
         # TD Target is the last reward + the expected reward of the
         # best action in the next state, discounted.
@@ -167,7 +167,7 @@ class DQN:
         if self.environment.is_terminated:
             td_target = last_reward
         else:
-            # policy network (θt) used here to get best action 
+            # policy network (θt) used here to get best action
             action = self.get_best_action(current_state)
 
             # target network (θ−t) used here to calculate q value for action
@@ -183,17 +183,28 @@ class DQN:
     θt = policy network (in our case)
     θ−t = target network (in our case)
     """
+
     def compute_td_targets_batch(self, experiences: ExperienceBatch) -> TdTargetBatch:
-        rewards = experiences.rewards.unsqueeze(1)
-            
-        # using policy network for action selection (θt)
-        max_actions = self.policy_network.get_q_values_batch(experiences.new_states).batch_output.argmax(dim=1).unsqueeze(1)
-        
-        # using target network for q value calculation (θ−t)
-        q_values = self.target_network.get_q_values_batch(experiences.new_states).batch_output
-        
-        max_q_values = q_values.gather(1, max_actions)
-        max_q_values[experiences.terminal] = 0.0  
+        # Tensor[[Reward], [Reward], ...]
+        rewards = experiences.rewards.unsqueeze(1)  # R_t+1
+
+        # get best actions according to policy network
+        # Tensor[[QValue * 3], [QValue * 3], ...]
+        policy_network_q_values = self.policy_network.get_q_values_batch(
+            experiences.new_states
+        )
+        # Tensor[Action, Action, ...]
+        best_actions = policy_network_q_values.batch_output.argmax(dim=1)
+        # Tensor[[Action], [Action], ...]
+        best_actions = best_actions.unsqueeze(1)
+
+        # calculate q values using target network
+        q_values = self.target_network.get_q_values_batch(experiences.new_states)
+
+        # get the target network's q value of the policy network's chosen action
+        max_q_values = q_values.batch_output.gather(1, best_actions)
+        # discounted reward is 0 for terminal states
+        max_q_values[experiences.terminal] = 0.0
 
         td_targets = rewards + (self.gamma * max_q_values)
 
@@ -207,17 +218,27 @@ class DQN:
         print(f"Epsilon decayed to {self.epsilon}")
 
     def update_target_network(self):
-        policy_network_weights = self.policy_network.state_dict()
-        self.target_network.load_state_dict(policy_network_weights)
+        # policy_network_weights = self.policy_network.state_dict()
+        # self.target_network.load_state_dict(policy_network_weights)
+
+        # tmp: update network using weighted average of both networks
+        target_net_state = self.target_network.state_dict()
+        policy_net_state = self.policy_network.state_dict()
+        tau = 0.05
+
+        for key in target_net_state:
+            target_net_state[key] = (
+                tau * policy_net_state[key] + (1 - tau) * target_net_state[key]
+            )
+
+        self.target_network.load_state_dict(target_net_state)
 
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.policy_network.backprop(experiences, td_targets)
-    
-
 
     def train(self):
         episodes = []
-
+        create_figure()
         try:
             timestep_C_count = 0
             for episode in range(self.episode_count):
@@ -239,8 +260,10 @@ class DQN:
                     # print(
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
                     # )
- 
-                    td_target = self.compute_td_target(action_result.reward, action_result.new_state)
+
+                    td_target = self.compute_td_target(
+                        action_result.reward, action_result.new_state
+                    )
 
                     experience = Experience(
                         action_result.old_state,  
@@ -248,19 +271,18 @@ class DQN:
                         action,
                         action_result.reward,
                         action_result.terminal and action_result.won,
-                        td_target
+                        td_target,
                     )
-
 
                     self.replay_buffer.add_experience(experience)
 
-        
                     if self.replay_buffer.size() > self.buffer_batch_size:
-                        replay_batch = self.replay_buffer.prioritized_replay_sampling(self.buffer_batch_size)
+                        replay_batch = self.replay_buffer.prioritized_replay_sampling(
+                            self.buffer_batch_size
+                        )
 
                         # compute td targets for the whole of the replay batch
                         td_targets = self.compute_td_targets_batch(replay_batch)
-
 
                         self.backprop(replay_batch, td_targets)
 
@@ -282,9 +304,11 @@ class DQN:
                 episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 #self.decay_epsilon(episode)
                 self.epsilon *= 0.01
+                plot_episode_data(episodes) # comment out if you don't want live plot updates
+                self.decay_epsilon(episode)
                 print(f"Episode {episode} finished with total reward {reward_sum}")
 
         except KeyboardInterrupt:
             pass
 
-        plot_episode_data(episodes)
+        # plot_episode_data(episodes) # uncomment if you want to plot after training
