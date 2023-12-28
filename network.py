@@ -73,7 +73,7 @@ class NeuralNetwork(nn.Module):
     def __init__(self, env: Environment):
         super(NeuralNetwork, self).__init__()
 
-        n = 32
+        n = 64
         self.linear_relu_stack = nn.Sequential(
             nn.Linear(env.observation_space_length, n),
             nn.ReLU(),

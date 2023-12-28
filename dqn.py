@@ -243,7 +243,7 @@ class DQN:
                     td_target = self.compute_td_target(action_result.reward, action_result.new_state)
 
                     experience = Experience(
-                        action_result.old_state,
+                        action_result.old_state,  
                         action_result.new_state,
                         action,
                         action_result.reward,
@@ -280,7 +280,8 @@ class DQN:
                         break
 
                 episodes.append(EpisodeData(episode, reward_sum, timestep, won))
-                self.decay_epsilon(episode)
+                #self.decay_epsilon(episode)
+                self.epsilon *= 0.01
                 print(f"Episode {episode} finished with total reward {reward_sum}")
 
         except KeyboardInterrupt:

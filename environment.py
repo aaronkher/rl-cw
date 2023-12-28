@@ -25,7 +25,7 @@ class Environment:
         # self.env = gymnasium.make("MountainCar-v0", render_mode="human")
         self.env = gymnasium.make("MountainCar-v0")
 
-        self.reset()
+        #self.reset()
         self.last_action_taken: ActionResult
 
     @property

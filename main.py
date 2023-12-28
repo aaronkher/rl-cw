@@ -6,9 +6,9 @@ if __name__ == "__main__":
         timestep_count=100,
         gamma=0.9,
         epsilon_start=0.95,
-        epsilon_min=0.01,
-        epsilon_decay=0.01,
-        C=50,
+        epsilon_min=0.001,
+        epsilon_decay=0.005,
+        C=20,
         buffer_batch_size=100,
     )
     dqn.train()
