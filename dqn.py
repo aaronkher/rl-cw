@@ -9,7 +9,7 @@ import numpy as np
 
 from environment import Environment, Action, State, Transition
 from network import NeuralNetwork, NeuralNetworkResult
-from data_helper import plot_episode_data, EpisodeData
+from data_helper import LivePlot
 
 
 @dataclass
@@ -208,6 +208,8 @@ class DQN:
 
     def train(self):
         episodes = []
+        plot = LivePlot()
+        plot.create_figure()
 
         try:
             timestep_C_count = 0
@@ -261,14 +263,17 @@ class DQN:
                     f" | ε {self.epsilon:.2f}"
                 )
 
-                episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 self.decay_epsilon(episode)
-                # print(f"Episode {episode} finished with total reward {reward_sum}")
+
+                # episodes.append(EpisodeData(episode, reward_sum, timestep, won))
+                plot.add_episode(reward_sum, won, running_avg)
+                if episode % 5 == 0:
+                    plot.draw()
 
         except KeyboardInterrupt:
             pass
 
         try:
-            plot_episode_data(episodes)
+            plot.draw()
         except KeyboardInterrupt:
             pass  # ctrl-c to close plot
