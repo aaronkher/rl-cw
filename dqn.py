@@ -182,6 +182,7 @@ class DQN:
 
     def train(self):
         episodes = []
+        best_reward = float("-inf")
 
         try:
             timestep_C_count = 0
@@ -237,12 +238,25 @@ class DQN:
                             f" with total reward {reward_sum:.2f}"
                         )
                         break
-
                 episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 self.decay_epsilon(episode)
                 # print(f"Episode {episode} finished with total reward {reward_sum}")
 
+                # best reward is the highest reward achieved in any episode so far
+                best_reward = max(best_reward, reward_sum)
+
         except KeyboardInterrupt:
             pass
 
-        plot_episode_data(episodes)
+        hyperparameters = {
+            "episode_count": self.episode_count,
+            "timestep_count": self.timestep_count,
+            "gamma": self.gamma,
+            "epsilon_start": self.epsilon_start,
+            "epsilon_min": self.epsilon_min,
+            "epsilon_decay": self.decay_rate,
+            "C": self.C,
+            "buffer_batch_size": self.buffer_batch_size,
+        }
+        plot_episode_data(episodes, hyperparameters)
+        return best_reward
