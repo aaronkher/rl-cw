@@ -137,14 +137,29 @@ class NeuralNetwork(nn.Module):
         return neural_network_result.best_action()
 
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
-        state_action_values = self(experiences.old_states).gather(1, experiences.actions)
+        # Tensor[State, State, ...]
+        # where State is Tensor[position, velocity]
+        experience_states = experiences.old_states
+
+        # Tensor[[QValue * 3], [QValue * 3], ...]
+        # where QValue is float
+        q_values = self(experience_states)
+
+        # Tensor[[Action], [Action], ...]
+        # where Action is int
+        actions_chosen = experiences.actions
+
+        # Tensor[[QValue], [QValue], ...]
+        actions_chosen_q_values = q_values.gather(
+            1, actions_chosen
+        )  # y_hat = predicted (policy network)
 
         # # Tensor[[TDTarget], [TDTarget], ...]
         # # where TDTarget is QValue
         td_targets_tensor = td_targets.tensor  # y = actual (target network)
 
         criterion = torch.nn.SmoothL1Loss()
-        loss = criterion(state_action_values, td_targets_tensor)
+        loss = criterion(actions_chosen_q_values, td_targets_tensor)
 
         self.optim.zero_grad()
         loss.backward()
