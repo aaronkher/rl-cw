@@ -28,6 +28,8 @@ class ExperienceBatch:
         # states are already torch tensors, so we can just use torch.stack
         self.old_states = torch.stack([exp.old_state for exp in experiences])
 
+        self.new_states = torch.stack([exp.new_state for exp in experiences])
+
         # Tensor[False, False, True, ...]
         self.terminal = NeuralNetwork.tensorify([exp.terminal for exp in experiences])
 
@@ -55,7 +57,6 @@ class DDPG:
         # epsilon_min: float = 0.01,
         # epsilon_decay: float = 0.05,
         # C: int = 50,
-        beta = 0.9,
         buffer_batch_size: int = 100,
         target_network_learning_rate = 0.9,
     ):
@@ -68,7 +69,6 @@ class DDPG:
         # self.epsilon = epsilon_start
 
         self.gamma = gamma
-        self.beta = beta
         # self.C = C
         self.buffer_batch_size = buffer_batch_size # replay memory D capacity
 
@@ -135,10 +135,13 @@ class DDPG:
         # Tensor[-0.99, -0.99, ...]
         rewards = experiences.rewards
 
+        next_actions = self.target_actor_network.get_action_batch(experiences.new_states)
+
         # Tensor[[QValue * 3], [QValue * 3], ...]
+        # TODO NOT SURE IF THIS IS USING THE CORRECT STATES AND ACTIONS 
         qvalues = self.target_critic_network.get_q_value_batch(
-            experiences.old_states,
-            experiences.actions
+            experiences.new_states,
+            next_actions
         )
         # qvalues_tensor = qvalues.batch_output
 
