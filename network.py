@@ -83,12 +83,6 @@ class NeuralNetwork(nn.Module):
         # self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
         self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
 
-        self.to(self.device())
-
-    def copy_from_other(self, other: "NeuralNetwork"):
-        self.load_state_dict(other.state_dict())
-        self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
-
     # do not call directly, call get_q_values() instead
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         """PyTorch internal function to perform forward pass.
@@ -147,6 +141,23 @@ class NeuralNetwork(nn.Module):
         return neural_network_result.best_action()
 
     def backprop(self, transitions: TransitionBatch, dqn: DQN):
+        # state_action_values = self(experiences.old_states).gather(
+        #     1, experiences.actions
+        # )
+
+        # # # Tensor[[TDTarget], [TDTarget], ...]
+        # # # where TDTarget is QValue
+        # td_targets_tensor = td_targets.tensor  # y = actual (target network)
+
+        # criterion = torch.nn.SmoothL1Loss()
+        # loss = criterion(state_action_values, td_targets_tensor)
+
+        # self.optim.zero_grad()
+        # loss.backward()
+
+        # clip_grad_value_(self.parameters(), 100)
+        # self.optim.step()  # gradient descent
+
         device = self.device()
         batch = Transition(*zip(*transitions))
 
