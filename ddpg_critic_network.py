@@ -59,7 +59,7 @@ class DDPGCriticNetwork(nn.Module):
 
         self.env = env
 
-        n=32
+        n=128
 
         self.critic_network = nn.Sequential(
             nn.Linear(self.env.observation_space_length + 1, n),

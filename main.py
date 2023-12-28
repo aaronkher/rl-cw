@@ -18,7 +18,7 @@ if __name__ == "__main__":
         episode_count=1000,
         timestep_count=1000,
         gamma=0.9,
-        beta=0.9,
+        target_network_learning_rate=0.9,
         buffer_batch_size=100,
     )
     ddpg.train()

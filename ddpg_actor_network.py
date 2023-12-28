@@ -60,7 +60,7 @@ class DDPGActorNetwork(nn.Module):
 
         self.env = env
 
-        n=32
+        n=128
 
         self.actor_network = nn.Sequential(
             nn.Linear(self.env.observation_space_length, n),
@@ -107,14 +107,15 @@ class DDPGActorNetwork(nn.Module):
         neural_network_output = self(state)
         return neural_network_output.item()
 
-    def get_action_batch(self, states: torch.Tensor) -> DDPGActorNetworkResultBatch:
+    def get_action_batch(self, states: torch.Tensor) -> torch.Tensor:
         # states = Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
-        batch_output = self(states)
+        # batch_output = self(states)
+
         # batch_output = Tensor[a, a, ...]
         # where a is float [-1,1]
 
-        return DDPGActorNetworkResultBatch(batch_output)
+        return self(states)
 
     def backprop(self, experiences: ExperienceBatch, critic_network: DDPGCriticNetwork):
         # perform gradient ascent on the actor network
@@ -132,5 +133,3 @@ class DDPGActorNetwork(nn.Module):
         #clip_grad_norm_(self.parameters(), 1)
 
         self.optim.step()  # gradient descent
-
-        
