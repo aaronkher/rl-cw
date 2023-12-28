@@ -86,22 +86,20 @@ class DQN:
 
         self.environment = Environment()
 
+        # initialise replay memory
         self.replay_buffer = ReplayBuffer()
-        self.policy_network = NeuralNetwork(self.environment).to(
-            NeuralNetwork.device()
-        )  # q1
-        self.target_network = NeuralNetwork(self.environment).to(
-            NeuralNetwork.device()
-        )  # q2
+        # initialise q1
+        self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
+        # initialise q2
+        self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
+        # copy q2 to q1
         self.target_network.load_state_dict(self.policy_network.state_dict())
-
-        self.steps_taken = 0
 
     def get_best_action(self, state: State) -> Action:
         return self.policy_network.get_best_action(state)
 
     def get_action_using_epsilon_greedy(self, state: State):
-        if random.random() < self.epsilon:
+        if np.random.uniform(0, 1) < self.epsilon:
             # pick random action
             action = random.choice(self.environment.action_list)
         else:
@@ -164,11 +162,12 @@ class DQN:
         td_targets = expected_state_action_values.unsqueeze(1)
         return TdTargetBatch(td_targets)
 
-    def decay_epsilon(self):
-        self.epsilon = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * (
-            math.exp(-1.0 * self.steps_taken / self.decay_rate)
-        )
-        self.steps_taken += 1
+    def decay_epsilon(self, episode):
+        # epsilon = epsilon_min + (epsilon_start - epsilon_min) x epsilon^-decay_rate * episode
+        self.epsilon = self.epsilon_min + (
+            self.epsilon_start - self.epsilon_min
+        ) * math.exp(-self.decay_rate * episode)
+        print(f"Epsilon decayed to {self.epsilon}")
 
     def update_target_network(self):
         # policy_network_weights = self.policy_network.state_dict()
@@ -205,7 +204,6 @@ class DQN:
                 for timestep in range(self.timestep_count):
                     state = self.environment.current_state  # S_t
 
-                    self.decay_epsilon()
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
                     action_result = self.execute_action(action)
                     reward_sum += action_result.reward
@@ -247,6 +245,7 @@ class DQN:
                         break
 
                 episodes.append(EpisodeData(episode, reward_sum, timestep, won))
+                self.decay_epsilon(episode)
                 # print(f"Episode {episode} finished with total reward {reward_sum}")
 
         except KeyboardInterrupt:
