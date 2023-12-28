@@ -104,20 +104,24 @@ class DDPG:
     def get_action_according_to_policy(self, state: State) -> Action:
         return self.actor_network.get_action(state)
 
+    def add_ou_noise(self, x, mu=0.0, theta=0.05, sigma=0.3): #mu is mean, theta is friction, sigma is noise
+        dx = theta * (mu - x) + sigma * np.random.randn()
+        return dx
+
     def get_action(self, state: State):
         # randomly generate noise and add it to the action
 
         # TODO come up with a not stupid way of doing this
         # noise = np.random.uniform(-1, 1)
 
-        noise = np.random.normal(0, 0.3) # mean 0, std 0.3
+        # noise = np.random.normal(0, 0.2) # mean 0, std 0.3
 
         action = self.get_action_according_to_policy(state)
-        action += noise
+        # action += noise
+        action = self.add_ou_noise(action)
 
         # clamp action between -1 and 1
         action = min(max(action, -1.0), 1.0)
-
         return action
 
     def execute_action(self, action: Action) -> ActionResult:
