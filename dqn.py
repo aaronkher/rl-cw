@@ -147,27 +147,21 @@ class DQN:
         # Tensor[-0.99, -0.99, ...]
         rewards = experiences.rewards
 
+        non_final_mask = ~experiences.terminal
+        non_final_next_states = torch.stack(
+            [s for (s, t) in zip(experiences.new_states, experiences.terminal) if not t]
+        )
+
+        next_state_values = torch.zeros(experiences.size, device=NeuralNetwork.device())
+
         # Tensor[[QValue * 3], [QValue * 3], ...]
         with torch.no_grad():
-            discounted_qvalues = self.target_network.get_q_values_batch(
-                experiences.new_states
-            )
-        discounted_qvalues_tensor = discounted_qvalues.batch_output
+            next_state_values[non_final_mask] = self.target_network(non_final_next_states).max(1).values
 
-        # pick the QValue associated with the action that was taken
-        actions_chosen = experiences.actions
-
-        # Tensor[[QValue], [QValue], ...]
-        discounted_qvalues_tensor = discounted_qvalues_tensor.gather(1, actions_chosen)
-        discounted_qvalues_tensor *= self.gamma
-        discounted_qvalues_tensor[experiences.terminal] = 0
-
-        # reformat rewards tensor to same shape as discounted_qvalues_tensor
-        # Tensor[[-0.99], [-0.99], ...]
-        rewards = rewards.unsqueeze(1)
+        expected_state_action_values = (next_state_values * self.gamma) + rewards
 
         # Tensor[[TDTarget], [TDTarget], ...]
-        td_targets = rewards + discounted_qvalues_tensor
+        td_targets = expected_state_action_values.unsqueeze(1)
         return TdTargetBatch(td_targets)
 
     def decay_epsilon(self):
@@ -233,8 +227,8 @@ class DQN:
                         replay_batch = self.replay_buffer.get_batch(
                             self.buffer_batch_size
                         )
-                        td_targets = self.compute_td_targets_batch(replay_batch)
 
+                        td_targets = self.compute_td_targets_batch(replay_batch)
                         self.backprop(replay_batch, td_targets)
 
                     timestep_C_count += 1
