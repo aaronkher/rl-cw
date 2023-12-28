@@ -57,37 +57,26 @@ class ReplayMemory(object):
 class DQN:
     def __init__(
         self,
-        episode_count: int,
-        timestep_count: int,
         gamma: float,
         epsilon_start: float = 0.9,
         epsilon_min: float = 0.01,
         epsilon_decay: float = 0.05,
-        C: int = 50,
         buffer_batch_size: int = 100,
     ):
-        self.episode_count = episode_count
-        self.timestep_count = timestep_count
 
         self.epsilon_start = epsilon_start
         self.epsilon_min = epsilon_min
         self.decay_rate = epsilon_decay
-        self.epsilon = epsilon_start
 
         self.gamma = gamma
-        self.C = C
         self.buffer_batch_size = buffer_batch_size
 
         self.environment = Environment()
 
         self.replay_buffer = ReplayMemory(10000)
-        self.policy_network = NeuralNetwork(self.environment).to(
-            NeuralNetwork.device()
-        )  # q1
-        self.target_network = NeuralNetwork(self.environment).to(
-            NeuralNetwork.device()
-        )  # q2
-        self.target_network.load_state_dict(self.policy_network.state_dict())
+        self.policy_network = NeuralNetwork(self.environment)  # q1
+        self.target_network = NeuralNetwork(self.environment)  # q2
+        self.target_network.copy_from_other(self.policy_network)
 
         self.steps_taken = 0
 
@@ -95,9 +84,14 @@ class DQN:
         return self.policy_network.get_best_action(state)
 
     def get_action_using_epsilon_greedy(self, state: State):
-        if random.random() < self.epsilon:
+        epsilon = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * (
+            math.exp(-1.0 * self.steps_taken / self.decay_rate)
+        )
+        self.steps_taken += 1
+
+        if random.random() < epsilon:
             # pick random action
-            action_int = random.choice(self.environment.action_list)
+            action_int = self.environment.env.action_space.sample()
             action = NeuralNetwork.tensorify([[action_int]])
         else:
             # pick best action
@@ -134,12 +128,6 @@ class DQN:
 
         return td_target
 
-    def decay_epsilon(self):
-        self.epsilon = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * (
-            math.exp(-1.0 * self.steps_taken / self.decay_rate)
-        )
-        self.steps_taken += 1
-
     def update_target_network(self):
         # policy_network_weights = self.policy_network.state_dict()
         # self.target_network.load_state_dict(policy_network_weights)
@@ -163,8 +151,7 @@ class DQN:
         episodes = []
 
         try:
-            timestep_C_count = 0
-            for episode in range(self.episode_count):
+            for episode in range(10*1000):
                 print(f"Episode: {episode}")
                 self.environment.reset()
 
@@ -172,11 +159,10 @@ class DQN:
                 reward_sum = 0
                 won = False
 
-                for timestep in range(self.timestep_count):
+                for timestep in range(10*1000):
                     state = self.environment.current_state  # S_t
                     assert state is not None
 
-                    self.decay_epsilon()
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
                     action_result = self.execute_action(action)
                     reward_sum += action_result.reward.item()
@@ -201,10 +187,7 @@ class DQN:
                         replay_batch = self.replay_buffer.sample(self.buffer_batch_size)
                         self.backprop(replay_batch)
 
-                    timestep_C_count += 1
-                    if timestep_C_count == self.C:
-                        self.update_target_network()
-                        timestep_C_count = 0
+                    self.update_target_network()
 
                     # process termination
                     if action_result.terminal:
