@@ -8,7 +8,7 @@ import numpy as np
 
 from environment import Environment, Action, State, ActionResult
 from network import NeuralNetwork, NeuralNetworkResult, NeuralNetworkResultBatch
-from data_helper import plot_episode_data, EpisodeData
+from data_helper import plot_episode_data, EpisodeData, create_figure
 
 
 @dataclass
@@ -119,7 +119,7 @@ class DQN:
 
         self.environment = Environment()
 
-        self.replay_buffer = ReplayBuffer()
+        self.replay_buffer = ReplayBuffer(replay_buffer_size=replay_buffer_size)
         self.policy_network = NeuralNetwork(self.environment)  # q1
         self.target_network = NeuralNetwork(self.environment)  # q2
         # copy q2 to q1
@@ -238,7 +238,7 @@ class DQN:
 
     def train(self):
         episodes = []
-
+        create_figure()
         try:
             timestep_C_count = 0
             for episode in range(self.episode_count):
@@ -302,10 +302,11 @@ class DQN:
                         break
 
                 episodes.append(EpisodeData(episode, reward_sum, timestep, won))
+                plot_episode_data(episodes) # comment out if you don't want live plot updates
                 self.decay_epsilon(episode)
                 print(f"Episode {episode} finished with total reward {reward_sum}")
 
         except KeyboardInterrupt:
             pass
 
-        plot_episode_data(episodes)
+        # plot_episode_data(episodes) # uncomment if you want to plot after training
