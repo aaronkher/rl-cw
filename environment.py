@@ -49,13 +49,13 @@ class Environment:
         new_state = torch.from_numpy(new_state).to(NeuralNetwork.device())
         reward = float(_reward)
 
-        if terminated:
-            new_state = None
+        # clamp reward between -1 and 1
+        # reward = min(max(reward, -1.0), 1.0)
 
         self.last_action_taken = ActionResult(
             action,
             old_state,
-            new_state,  # type: ignore
+            new_state,
             reward,
             terminated or truncated,
             truncated,
