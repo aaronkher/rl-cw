@@ -6,7 +6,7 @@ import gymnasium
 
 from network import NeuralNetwork
 
-Action = int
+Action = torch.Tensor
 State = torch.Tensor
 
 
@@ -14,8 +14,8 @@ State = torch.Tensor
 class ActionResult:
     action: Action
     old_state: State
-    new_state: State
-    reward: float
+    new_state: State | None
+    reward: torch.Tensor
     terminal: bool
     won: bool
 
@@ -45,17 +45,25 @@ class Environment:
 
     def take_action(self, action: Action) -> ActionResult:
         old_state = self.current_state
-        (new_state, _reward, terminated, truncated, info) = self.env.step(action)
-        new_state = torch.from_numpy(new_state).to(NeuralNetwork.device())
-        reward = float(_reward)
+        assert old_state is not None, "env needs resetting"
+
+        (observation, reward, terminated, truncated, info) = self.env.step(
+            action.item()
+        )
+        # new_state = torch.from_numpy(new_state).to(NeuralNetwork.device())
+        reward = torch.tensor([reward], device=NeuralNetwork.device())
 
         if terminated:
-            new_state = None
+            next_state = None
+        else:
+            next_state = torch.tensor(
+                observation, dtype=torch.float32, device=NeuralNetwork.device()
+            ).unsqueeze(0)
 
         self.last_action_taken = ActionResult(
             action,
             old_state,
-            new_state,  # type: ignore
+            next_state,
             reward,
             terminated or truncated,
             truncated,
@@ -64,19 +72,21 @@ class Environment:
 
     def reset(self):
         (current_state, _) = self.env.reset()
-        current_state = NeuralNetwork.tensorify(current_state)
+        current_state = torch.tensor(
+            current_state, dtype=torch.float32, device=NeuralNetwork.device()
+        ).unsqueeze(0)
 
         self.last_action_taken = ActionResult(
             action=None,  # type: ignore
             old_state=None,  # type: ignore
             new_state=current_state,
-            reward=0.0,
+            reward=None,  # type: ignore
             terminal=False,
             won=False,
         )
 
     @property
-    def current_state(self) -> State:
+    def current_state(self) -> State | None:
         return self.last_action_taken.new_state
 
     @property
@@ -85,7 +95,7 @@ class Environment:
 
     @property
     def last_reward(self) -> float:
-        return self.last_action_taken.reward
+        return self.last_action_taken.reward.item()
 
     def render(self):
         self.env.render()
