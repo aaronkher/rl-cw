@@ -74,7 +74,7 @@ class DDPG:
 
         self.target_network_learning_rate = target_network_learning_rate
 
-        self.environment = Environment("MountainCarContinuous-v0")
+        self.environment = Environment("Pendulum-v1")
 
         # initialise replay memory
         self.replay_buffer = ReplayBuffer()
