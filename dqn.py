@@ -39,6 +39,7 @@ class ExperienceBatch:
         # Tensor[State, State, ...]
         # states are already torch tensors, so we can just use torch.stack
         self.old_states = torch.stack([exp.old_state for exp in experiences])
+        self.new_states = torch.stack([exp.new_state for exp in experiences])
 
         # Tensor[False, False, True, ...]
         self.terminal = NeuralNetwork.tensorify([exp.terminal for exp in experiences])
@@ -146,7 +147,7 @@ class DQN:
 
         # Tensor[[QValue * 3], [QValue * 3], ...]
         discounted_qvalues = self.target_network.get_q_values_batch(
-            experiences.old_states
+            experiences.new_states
         )
         discounted_qvalues_tensor = discounted_qvalues.batch_output
 
@@ -205,8 +206,6 @@ class DQN:
                     state = self.environment.current_state  # S_t
 
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
-                    action_result = self.execute_action(action)
-
                     action_result = self.execute_action(action)
                     reward_sum += action_result.reward
 
