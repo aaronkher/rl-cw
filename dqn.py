@@ -151,20 +151,15 @@ class DQN:
         )
         discounted_qvalues_tensor = discounted_qvalues.batch_output
 
-        # pick the QValue associated with the action that was taken
-        actions_chosen = experiences.actions
-
+        # pick the QValue associated with the best action
         # Tensor[[QValue], [QValue], ...]
-        discounted_qvalues_tensor = discounted_qvalues_tensor.gather(1, actions_chosen)
+        discounted_qvalues_tensor = discounted_qvalues_tensor.max(1).values
         discounted_qvalues_tensor *= self.gamma
         discounted_qvalues_tensor[experiences.terminal] = 0
 
-        # reformat rewards tensor to same shape as discounted_qvalues_tensor
-        # Tensor[[-0.99], [-0.99], ...]
-        rewards = rewards.unsqueeze(1)
-
         # Tensor[[TDTarget], [TDTarget], ...]
         td_targets = rewards + discounted_qvalues_tensor
+        td_targets = td_targets.unsqueeze(1)
         return TdTargetBatch(td_targets)
 
     def decay_epsilon(self, episode):
