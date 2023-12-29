@@ -219,7 +219,7 @@ class DQN:
                         action_result.new_state,
                         action,
                         action_result.reward,
-                        action_result.terminal and action_result.won,
+                        action_result.terminal and not action_result.won,
                     )
                     self.replay_buffer.add_experience(experience)
 
