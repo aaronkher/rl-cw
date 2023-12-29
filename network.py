@@ -4,9 +4,6 @@ from typing import cast, TYPE_CHECKING, Any, Iterable
 
 import torch
 from torch import nn
-from torch.nn.functional import relu
-from torch.nn.utils.clip_grad import clip_grad_norm_
-
 
 
 # prevent circular import
@@ -37,19 +34,19 @@ class NeuralNetworkResult:
     def q_value_for_action(self, action: Action) -> float:
         return self.tensor[action].item()
 
- 
+
 class NeuralNetworkResultBatch:
-    def __init__(self, batch_output: torch.Tensor):
+    def __init__(self, tensor: torch.Tensor):
         # Tensor[[QValue * 3], [QValue * 3], ...]
-        self.batch_output = batch_output
+        self.tensor = tensor
 
     def __getitem__(self, index: int) -> NeuralNetworkResult:
         """Override index operator e.g. batch[0] -> NeuralNetworkResult"""
-        return NeuralNetworkResult(self.batch_output[index])
+        return NeuralNetworkResult(self.tensor[index])
 
     def __mul__(self, other: float) -> "NeuralNetworkResultBatch":
         """Override * operator e.g. batch * 0.9"""
-        return NeuralNetworkResultBatch(self.batch_output * other)
+        return NeuralNetworkResultBatch(self.tensor * other)
 
 
 class NeuralNetwork(nn.Module):
@@ -113,7 +110,7 @@ class NeuralNetwork(nn.Module):
                 easier.
         """
 
-        neural_network_output = self(state)
+        neural_network_output = self(state.tensor)
         return NeuralNetworkResult(neural_network_output)
 
     def get_q_values_batch(self, states: torch.Tensor) -> NeuralNetworkResultBatch:
@@ -140,8 +137,6 @@ class NeuralNetwork(nn.Module):
         return neural_network_result.best_action()
 
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
-        self.optim.zero_grad()
-
         # Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
         experience_states = experiences.old_states
@@ -155,16 +150,18 @@ class NeuralNetwork(nn.Module):
         actions_chosen = experiences.actions
 
         # Tensor[[QValue], [QValue], ...]
-        actions_chosen_q_values = q_values.gather(1, actions_chosen) # y_hat = predicted (policy network)
+        actions_chosen_q_values = q_values.gather(1, actions_chosen)
+        # y_hat = predicted (policy network)
 
-        # # Tensor[[TDTarget], [TDTarget], ...]
-        # # where TDTarget is QValue
-        td_targets_tensor = td_targets.tensor # y = actual (target network)
+        # Tensor[[TDTarget], [TDTarget], ...]
+        # where TDTarget is QValue
+        td_targets_tensor = td_targets.tensor.unsqueeze(1)
+        # y = actual (target network)
 
         criterion = torch.nn.MSELoss()
         loss = criterion(actions_chosen_q_values, td_targets_tensor)
-        loss.backward()
-        #clip_grad_norm_(self.parameters(), 1)
 
- 
+        self.optim.zero_grad()
+        loss.backward()
+
         self.optim.step()  # gradient descent

@@ -6,28 +6,19 @@ import collections
 import torch
 import numpy as np
 
-from environment import Environment, Action, State, ActionResult
-from network import NeuralNetwork, NeuralNetworkResult, NeuralNetworkResultBatch
+from environment import Environment, Action, State, Transition
+from network import NeuralNetwork, NeuralNetworkResult
 from data_helper import plot_episode_data, EpisodeData
 
 
 @dataclass
-class Experience:
-    old_state: State
-    new_state: State
-    action: Action
-    reward: float
-    terminal: bool
-
-
-@dataclass
 class TdTargetBatch:
-    # Tensor[[TDTarget], [TDTarget], ...]
+    # Tensor[TDTarget, TDTarget, ...]
     tensor: torch.Tensor
 
 
 class ExperienceBatch:
-    def __init__(self, experiences: list[Experience]):
+    def __init__(self, experiences: list[Transition]):
         self.size = len(experiences)
 
         # Tensor[[0], [2], [1], ...]
@@ -38,18 +29,20 @@ class ExperienceBatch:
 
         # Tensor[State, State, ...]
         # states are already torch tensors, so we can just use torch.stack
-        self.old_states = torch.stack([exp.old_state for exp in experiences])
-        self.new_states = torch.stack([exp.new_state for exp in experiences])
+        self.old_states = torch.stack([exp.old_state.tensor for exp in experiences])
+        self.new_states = torch.stack([exp.new_state.tensor for exp in experiences])
 
         # Tensor[False, False, True, ...]
-        self.terminal = NeuralNetwork.tensorify([exp.terminal for exp in experiences])
+        self.terminal = NeuralNetwork.tensorify(
+            [exp.new_state.terminal for exp in experiences]
+        )
 
 
 class ReplayBuffer:
     def __init__(self, max_len=10000):
         self.buffer = collections.deque(maxlen=max_len)
 
-    def add_experience(self, experience: Experience):
+    def add_experience(self, experience: Transition):
         self.buffer.append(experience)
 
     def get_batch(self, batch_size: int) -> ExperienceBatch:
@@ -59,7 +52,7 @@ class ReplayBuffer:
     def size(self) -> int:
         return len(self.buffer)
 
- 
+
 class DQN:
     def __init__(
         self,
@@ -107,7 +100,7 @@ class DQN:
             action = self.get_best_action(state)
         return action
 
-    def execute_action(self, action: Action) -> ActionResult:
+    def execute_action(self, action: Action) -> Transition:
         return self.environment.take_action(action)
 
     # using policy
@@ -119,7 +112,7 @@ class DQN:
         neural_network_result = self.target_network.get_q_values(state)
         return neural_network_result.q_value_for_action(action)
 
-    def compute_td_target(self, experience: Experience) -> float:
+    def compute_td_target(self, experience: Transition) -> float:
         # TD Target is the last reward + the expected reward of the
         # best action in the next state, discounted.
 
@@ -127,7 +120,7 @@ class DQN:
         last_reward = experience.reward  # R_t
         current_state = experience.new_state  # S_t+1
 
-        if self.environment.is_terminated:
+        if current_state.terminal:  # terminal experience
             td_target = last_reward
         else:
             action = self.get_best_action(current_state)
@@ -149,7 +142,7 @@ class DQN:
         discounted_qvalues = self.target_network.get_q_values_batch(
             experiences.new_states
         )
-        discounted_qvalues_tensor = discounted_qvalues.batch_output
+        discounted_qvalues_tensor = discounted_qvalues.tensor
 
         # pick the QValue associated with the best action
         # Tensor[QValue, QValue, ...]
@@ -159,8 +152,6 @@ class DQN:
 
         # Tensor[TDTarget, TDTarget, ...]
         td_targets = rewards + discounted_qvalues_tensor
-        # Tensor[[TDTarget], [TDTarget], ...]
-        td_targets = td_targets.unsqueeze(1)
         return TdTargetBatch(td_targets)
 
     def decay_epsilon(self, episode):
@@ -200,23 +191,15 @@ class DQN:
 
                 for timestep in range(self.timestep_count):
                     state = self.environment.current_state  # S_t
-
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
-                    action_result = self.execute_action(action)
-                    reward_sum += action_result.reward
+
+                    transition = self.execute_action(action)
+                    self.replay_buffer.add_experience(transition)
+                    reward_sum += transition.reward
 
                     # print(
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
                     # )
-
-                    experience = Experience(
-                        action_result.old_state,
-                        action_result.new_state,
-                        action,
-                        action_result.reward,
-                        action_result.terminal and not action_result.won,
-                    )
-                    self.replay_buffer.add_experience(experience)
 
                     if self.replay_buffer.size() > self.buffer_batch_size:
                         replay_batch = self.replay_buffer.get_batch(
@@ -232,8 +215,8 @@ class DQN:
                         timestep_C_count = 0
 
                     # process termination
-                    if action_result.terminal:
-                        won = action_result.won
+                    if transition.end_of_episode():
+                        won = transition.truncated
                         won_str = "won" if won else "lost"
                         print(
                             f"Episode {episode+1} ended ({won_str}) after {timestep+1} timestaps"

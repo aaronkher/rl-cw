@@ -1,23 +1,33 @@
 from dataclasses import dataclass
 
 import torch
-
 import gymnasium
 
 from network import NeuralNetwork
 
+
 Action = int
-State = torch.Tensor
 
 
 @dataclass
-class ActionResult:
-    action: Action
-    old_state: State
-    new_state: State
-    reward: float
+class State:
+    tensor: torch.Tensor  # 1D array
     terminal: bool
-    won: bool
+
+
+@dataclass
+class Transition:
+    """The result of taking A_t in S_t, obtaining R_t and transitionning
+    to S_t+1."""
+
+    action: Action  # A_t
+    old_state: State  # S_t
+    new_state: State  # S_t+1
+    reward: float  # R_t
+    truncated: bool  # out of timesteps
+
+    def end_of_episode(self) -> bool:
+        return self.new_state.terminal or self.truncated
 
 
 class Environment:
@@ -25,66 +35,56 @@ class Environment:
         self.env = gymnasium.make("CartPole-v1")
 
         self.reset()
-        self.last_action_taken: ActionResult
+        self.current_state: State
+        self.last_action_taken: Transition | None
 
     @property
     def action_list(self) -> list[Action]:
-        # [0, 1, 2] for acrobot
+        # [0, 1] for cartpole
         return list(range(self.env.action_space.start, self.env.action_space.n))  # type: ignore
 
     @property
     def action_count(self) -> int:
-        # 3 for acrobot
+        # 2 for cartpole
         return len(self.action_list)
 
     @property
     def observation_space_length(self) -> int:
-        # 6 for acrobot
+        # 4 for cartpole
         return sum(self.env.observation_space.shape)  # type: ignore
 
-    def take_action(self, action: Action) -> ActionResult:
+    def take_action(self, action: Action) -> Transition:
         old_state = self.current_state
-        (new_state, _reward, terminated, truncated, info) = self.env.step(action)
-        new_state = NeuralNetwork.tensorify(new_state)
+        (new_state_ndarray, _reward, terminated, truncated, _) = self.env.step(action)
+
+        device = NeuralNetwork.device()
+        new_state_tensor = torch.from_numpy(new_state_ndarray).to(device)
+        new_state = State(new_state_tensor, terminated)
         reward = float(_reward)
 
-        # clamp reward between -1 and 1
-        # reward = min(max(reward, -1.0), 1.0)
-
-        self.last_action_taken = ActionResult(
+        self.current_state = new_state
+        self.last_action_taken = Transition(
             action,
             old_state,
             new_state,
             reward,
-            terminated or truncated,
-            won=truncated,
+            truncated,
         )
         return self.last_action_taken
 
     def reset(self):
         (current_state, _) = self.env.reset()
         current_state = NeuralNetwork.tensorify(current_state)
+        current_state = State(current_state, False)
 
-        self.last_action_taken = ActionResult(
-            action=None,  # type: ignore
-            old_state=None,  # type: ignore
-            new_state=current_state,
-            reward=0.0,
-            terminal=False,
-            won=False,
-        )
+        self.current_state = current_state
+        self.last_action_taken = None
 
     @property
-    def current_state(self) -> State:
-        return self.last_action_taken.new_state
-
-    @property
-    def is_terminated(self) -> bool:
-        return self.last_action_taken.terminal
+    def needs_reset(self) -> bool:
+        return self.last_action_taken is None or self.last_action_taken.end_of_episode()
 
     @property
     def last_reward(self) -> float:
+        assert self.last_action_taken is not None
         return self.last_action_taken.reward
-
-    def render(self):
-        self.env.render()
