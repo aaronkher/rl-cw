@@ -1,6 +1,7 @@
 import random
 from dataclasses import dataclass
 import math
+import time
 import collections
 
 import torch
@@ -218,15 +219,11 @@ class DQN:
         print(f"Epsilon decayed to {self.epsilon}")
 
     def update_target_network(self):
-        # policy_network_weights = self.policy_network.state_dict()
-        # self.target_network.load_state_dict(policy_network_weights)
-
-        # tmp: update network using weighted average of both networks
         target_net_state = self.target_network.state_dict()
         policy_net_state = self.policy_network.state_dict()
-        tau = 0.05
+        tau = 0.005
 
-        for key in target_net_state:
+        for key in policy_net_state:
             target_net_state[key] = (
                 tau * policy_net_state[key] + (1 - tau) * target_net_state[key]
             )
@@ -270,7 +267,7 @@ class DQN:
                         action_result.new_state,
                         action,
                         action_result.reward,
-                        action_result.terminal and action_result.won,
+                        action_result.terminal and not action_result.won,
                         td_target,
                     )
 
@@ -302,11 +299,13 @@ class DQN:
                         break
 
                 episodes.append(EpisodeData(episode, reward_sum, timestep, won))
-                #self.decay_epsilon(episode)
-                self.epsilon *= 0.01
-                plot_episode_data(episodes) # comment out if you don't want live plot updates
                 self.decay_epsilon(episode)
+
                 print(f"Episode {episode} finished with total reward {reward_sum}")
+                if episode % 10 == 0:
+                    plot_episode_data(episodes) # comment out if you don't want live plot updates
+    
+            time.sleep(10*1000)
 
         except KeyboardInterrupt:
             pass

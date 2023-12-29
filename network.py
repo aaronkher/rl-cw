@@ -82,8 +82,8 @@ class NeuralNetwork(nn.Module):
             nn.Linear(n, env.action_count),
         )
 
-        self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
-        # self.optim = torch.optim.AdamW(self.parameters(), lr=1e-2, amsgrad=True)
+        # self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
+        self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
 
         self.to(NeuralNetwork.device())
 
