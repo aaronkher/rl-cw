@@ -174,8 +174,16 @@ class DQN:
         print(f"Epsilon decayed to {self.epsilon}")
 
     def update_target_network(self):
-        policy_network_weights = self.policy_network.state_dict()
-        self.target_network.load_state_dict(policy_network_weights)
+        target_net_state = self.target_network.state_dict()
+        policy_net_state = self.policy_network.state_dict()
+        tau = 0.005
+
+        for key in policy_net_state:
+            target_net_state[key] = (
+                tau * policy_net_state[key] + (1 - tau) * target_net_state[key]
+            )
+
+        self.target_network.load_state_dict(target_net_state)
 
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.policy_network.backprop(experiences, td_targets)
