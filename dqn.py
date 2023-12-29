@@ -242,4 +242,4 @@ class DQN:
         except KeyboardInterrupt:
             pass
 
-        # plot_episode_data(episodes) # uncomment if you want to plot after training
+        plot_episode_data(episodes) # uncomment if you want to plot after training

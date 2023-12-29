@@ -9,7 +9,7 @@ from dqn import TdTargetBatch, Experience
 
 from environment import Environment, Action, State, ActionResult
 from dqn_network import NeuralNetwork, NeuralNetworkResult, NeuralNetworkResultBatch
-from data_helper import plot_episode_data, EpisodeData
+from data_helper import plot_episode_data, EpisodeData, create_figure
 
 from ddpg_critic_network import DDPGCriticNetwork, DDPGCriticNetworkResult
 from ddpg_actor_network import DDPGActorNetwork
@@ -200,7 +200,7 @@ class DDPG:
 
     def train(self):
         episodes = []
-
+        create_figure()
         try:
             # timestep_C_count = 0
             for episode in range(self.episode_count):
@@ -263,7 +263,9 @@ class DDPG:
                         )
                         break
 
-                episodes.append(EpisodeData(episode, reward_sum, timestep, won))
+                if (episode % 10 == 0):
+                    episodes.append(EpisodeData(episode, reward_sum, timestep, won))
+                plot_episode_data(episodes) # comment out if you don't want live plot updates
                 # self.decay_epsilon(episode)
                 # print(f"Episode {episode} finished with total reward {reward_sum}")
 
