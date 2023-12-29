@@ -264,8 +264,8 @@ class DDPG:
                         break
 
                 if (episode % 10 == 0):
-                    episodes.append(EpisodeData(episode, reward_sum, timestep, won))
-                plot_episode_data(episodes) # comment out if you don't want live plot updates
+                    plot_episode_data(episodes) # comment out if you don't want live plot updates
+                episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 # self.decay_epsilon(episode)
                 # print(f"Episode {episode} finished with total reward {reward_sum}")
 
