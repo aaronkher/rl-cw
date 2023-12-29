@@ -152,13 +152,14 @@ class DQN:
         discounted_qvalues_tensor = discounted_qvalues.batch_output
 
         # pick the QValue associated with the best action
-        # Tensor[[QValue], [QValue], ...]
+        # Tensor[QValue, QValue, ...]
         discounted_qvalues_tensor = discounted_qvalues_tensor.max(1).values
-        discounted_qvalues_tensor *= self.gamma
         discounted_qvalues_tensor[experiences.terminal] = 0
+        discounted_qvalues_tensor *= self.gamma
 
-        # Tensor[[TDTarget], [TDTarget], ...]
+        # Tensor[TDTarget, TDTarget, ...]
         td_targets = rewards + discounted_qvalues_tensor
+        # Tensor[[TDTarget], [TDTarget], ...]
         td_targets = td_targets.unsqueeze(1)
         return TdTargetBatch(td_targets)
 
