@@ -55,7 +55,7 @@ class ReplayBuffer:
         self.omega = omega
 
     def add_experience(self, transition: Transition):
-        experience = Experience(transition, 9.)
+        experience = Experience(transition, 9.0)
         self.buffer.append(experience)
 
     def get_batch(self, batch_size: int) -> ExperienceBatch:
@@ -98,9 +98,9 @@ class DQN:
         self.environment = Environment()
 
         self.replay_buffer = ReplayBuffer()
-        self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device()) # q1 / θ
-        self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device()) # q2 / θ-
-        self.policy_network.load_state_dict(self.target_network.state_dict()) # copy q2 to q1
+        self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())  # q1 / θ
+        self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())  # q2 / θ-
+        self.policy_network.load_state_dict(self.target_network.state_dict())  # copy q2 to q1
 
     def get_best_action(self, state: State) -> Action:
         return self.policy_network.get_best_action(state)
