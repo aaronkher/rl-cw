@@ -2,6 +2,7 @@ import random
 from dataclasses import dataclass
 import math
 import collections
+from typing import Iterable
 
 import torch
 import numpy as np
@@ -17,31 +18,35 @@ class TdTargetBatch:
     tensor: torch.Tensor
 
 
-class ExperienceBatch:
-    def __init__(self, experiences: list[Transition]):
-        self.size = len(experiences)
-
-        # Tensor[[0], [2], [1], ...]
-        self.actions = NeuralNetwork.tensorify([[exp.action] for exp in experiences])
-
-        # Tensor[-0.99, -0.99, ...]
-        self.rewards = NeuralNetwork.tensorify([exp.reward for exp in experiences])
-
-        # Tensor[State, State, ...]
-        # states are already torch tensors, so we can just use torch.stack
-        self.old_states = torch.stack([exp.old_state.tensor for exp in experiences])
-        self.new_states = torch.stack([exp.new_state.tensor for exp in experiences])
-
-        # Tensor[False, False, True, ...]
-        self.terminal = NeuralNetwork.tensorify(
-            [exp.new_state.terminal for exp in experiences]
-        )
-
-
 @dataclass
 class Experience:
     transition: Transition
     td_error: float
+
+
+class ExperienceBatch:
+    def __init__(self, replay_buffer: "ReplayBuffer", experiences: list[Experience]):
+        self.replay_buffer = replay_buffer
+        self.experiences = experiences
+        self.size = len(experiences)
+
+        # Tensor[[0], [2], [1], ...]
+        self.actions = NeuralNetwork.tensorify([[exp.transition.action] for exp in experiences])
+
+        # Tensor[-0.99, -0.99, ...]
+        self.rewards = NeuralNetwork.tensorify([exp.transition.reward for exp in experiences])
+
+        # Tensor[State, State, ...]
+        # states are already torch tensors, so we can just use torch.stack
+        self.old_states = torch.stack([exp.transition.old_state.tensor for exp in experiences])
+        self.new_states = torch.stack([exp.transition.new_state.tensor for exp in experiences])
+
+        # Tensor[False, False, True, ...]
+        self.terminal = NeuralNetwork.tensorify([exp.transition.new_state.terminal for exp in experiences])
+
+    def update_td_errors(self, td_errors: Iterable[float]):
+        for exp, td_error in zip(self.experiences, td_errors):
+            exp.td_error = td_error
 
 
 class ReplayBuffer:
@@ -49,8 +54,8 @@ class ReplayBuffer:
         self.buffer = collections.deque(maxlen=max_len)
         self.omega = omega
 
-    def add_experience(self, transition: Transition, td_error: float):
-        experience = Experience(transition, td_error)
+    def add_experience(self, transition: Transition):
+        experience = Experience(transition, float("inf"))
         self.buffer.append(experience)
 
     def get_batch(self, batch_size: int) -> ExperienceBatch:
@@ -61,7 +66,7 @@ class ReplayBuffer:
         indices = np.random.choice(len(self.buffer), batch_size, p=priorities)
         experiences = [self.buffer[idx].transition for idx in indices]
 
-        return ExperienceBatch(experiences)
+        return ExperienceBatch(self, experiences)
 
     def size(self) -> int:
         return len(self.buffer)
@@ -122,9 +127,7 @@ class DQN:
         return self.policy_network.get_q_values(state)
 
     # using target network here to estimate q values
-    def get_q_value_for_action(
-        self, state: State, action: Action, policy_net=False
-    ) -> float:
+    def get_q_value_for_action(self, state: State, action: Action, policy_net=False) -> float:
         network = self.policy_network if policy_net else self.target_network
         neural_network_result = network.get_q_values(state)
         return neural_network_result.q_value_for_action(action)
@@ -155,9 +158,7 @@ class DQN:
         rewards = experiences.rewards
 
         # Tensor[[QValue * 3], [QValue * 3], ...]
-        discounted_qvalues = self.target_network.get_q_values_batch(
-            experiences.new_states
-        )
+        discounted_qvalues = self.target_network.get_q_values_batch(experiences.new_states)
         discounted_qvalues_tensor = discounted_qvalues.tensor
 
         # pick the QValue associated with the best action
@@ -170,11 +171,21 @@ class DQN:
         td_targets = rewards + discounted_qvalues_tensor
         return TdTargetBatch(td_targets)
 
+    def update_experiences_td_errors(self, experiences: ExperienceBatch):
+        td_targets = self.compute_td_targets_batch(experiences)
+
+        q_values = self.target_network.get_q_values_batch(experiences.old_states)
+        q_values = q_values.for_actions(experiences.actions)
+
+        td_errors = (td_targets - q_values) ** self.replay_buffer.omega
+        td_errors = td_errors.numpy()
+        experiences.update_td_errors(td_errors)
+
     def decay_epsilon(self, episode):
         # epsilon = epsilon_min + (epsilon_start - epsilon_min) x epsilon^-decay_rate * episode
-        self.epsilon = self.epsilon_min + (
-            self.epsilon_start - self.epsilon_min
-        ) * math.exp(-self.decay_rate * episode)
+        self.epsilon = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * math.exp(
+            -self.decay_rate * episode
+        )
 
     def update_target_network(self):
         target_net_state = self.target_network.state_dict()
@@ -182,9 +193,7 @@ class DQN:
         tau = 0.005
 
         for key in policy_net_state:
-            target_net_state[key] = (
-                tau * policy_net_state[key] + (1 - tau) * target_net_state[key]
-            )
+            target_net_state[key] = tau * policy_net_state[key] + (1 - tau) * target_net_state[key]
 
         self.target_network.load_state_dict(target_net_state)
 
@@ -210,24 +219,18 @@ class DQN:
 
                     transition = self.execute_action(action)
                     reward_sum += transition.reward
-
-                    td_target = self.compute_td_target(transition)
-                    td_error = td_target - self.get_q_value_for_action(
-                        transition.old_state, transition.action, policy_net=True
-                    )
-                    self.replay_buffer.add_experience(transition, td_error)
+                    self.replay_buffer.add_experience(transition)
 
                     # print(
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
                     # )
 
                     if self.replay_buffer.size() > self.buffer_batch_size:
-                        replay_batch = self.replay_buffer.get_batch(
-                            self.buffer_batch_size
-                        )
+                        replay_batch = self.replay_buffer.get_batch(self.buffer_batch_size)
                         td_targets = self.compute_td_targets_batch(replay_batch)
 
                         self.backprop(replay_batch, td_targets)
+                        self.update_experiences_td_errors(replay_batch)
 
                     timestep_C_count += 1
                     if timestep_C_count == self.C:

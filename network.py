@@ -40,6 +40,13 @@ class NeuralNetworkResultBatch:
         # Tensor[[QValue * 3], [QValue * 3], ...]
         self.tensor = tensor
 
+    def for_actions(self, actions: torch.Tensor) -> torch.Tensor:
+        # actions = Tensor[[Action], [Action], ...]
+        # where Action is int
+
+        # Tensor[[QValue], [QValue], ...]
+        return self.tensor.gather(1, actions)
+
     def __getitem__(self, index: int) -> NeuralNetworkResult:
         """Override index operator e.g. batch[0] -> NeuralNetworkResult"""
         return NeuralNetworkResult(self.tensor[index])
@@ -54,11 +61,7 @@ class NeuralNetwork(nn.Module):
     def device() -> torch.device:
         """Utility function to determine whether we can run on GPU"""
         device = (
-            "cuda"
-            if torch.cuda.is_available()
-            else "mps"
-            if torch.backends.mps.is_available()
-            else "cpu"
+            "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
         )
         return torch.device(device)
 
