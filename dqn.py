@@ -64,17 +64,10 @@ class ReplayBuffer:
     Samples experiences proportional to the magnitude of td-error.
     Large TD error, greater probability of being sampled.
     """
-
     def prioritized_replay_sampling(self, batch_size: int):
         c = 0.01  # small constant
-
         # prioritiy of experience is proportional to the magnitude of the td-err
-        priorities = (
-            np.array(
-                [abs(exp.td_error) + c for exp in list(self.buffer)], dtype=np.float32
-            )
-            ** self.omega
-        )
+        priorities = (np.array([abs(exp.td_error) + c for exp in list(self.buffer)], dtype=np.float32)** self.omega)
 
         # w = omega
         # k = buffer size
@@ -233,6 +226,26 @@ class DQN:
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.policy_network.backprop(experiences, td_targets)
 
+    """
+    Re-computes the td_errors before prioritized replay sampling.
+    """
+    def re_compute_td_error_batch(self):
+        experiences = ExperienceBatch(list(self.replay_buffer.buffer))
+
+        # td targets 
+        td_targets_batch = self.compute_td_targets_batch(experiences)
+
+        # TODO: fix tensor issues 
+        actions = experiences.actions.unsqueeze(-1)
+        print("here")
+        print(actions.shape)
+        # the actual q values
+        current_q_values_batch = self.policy_network.get_q_values_batch(experiences.old_states).batch_output.gather(1, actions)
+
+        # update td_errors in buffer
+        for i, exp in enumerate(self.replay_buffer.buffer):
+            exp.td_error = (td_targets_batch.tensor[i] - current_q_values_batch[i]).item()
+
     def train(self):
         episodes = []
         create_figure()
@@ -258,9 +271,9 @@ class DQN:
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
                     # )
 
-                    td_target = self.compute_td_target(
-                        action_result.reward, action_result.new_state
-                    )
+                    td_target = self.compute_td_target(action_result.reward, action_result.new_state)
+                    current_q_value = self.get_q_value_for_action(action_result.old_state, action)
+                    td_error = td_target - current_q_value
 
                     experience = Experience(
                         action_result.old_state,  
@@ -268,12 +281,16 @@ class DQN:
                         action,
                         action_result.reward,
                         action_result.terminal and not action_result.won,
-                        td_target,
+                        td_error,
                     )
 
                     self.replay_buffer.add_experience(experience)
 
                     if self.replay_buffer.size() > self.buffer_batch_size:
+                        # replay buffer cannot be empty
+                        if len(self.replay_buffer.buffer) > 0: 
+                            self.re_compute_td_error_batch()
+
                         replay_batch = self.replay_buffer.prioritized_replay_sampling(
                             self.buffer_batch_size
                         )
