@@ -17,31 +17,39 @@ class TdTargetBatch:
     tensor: torch.Tensor
 
 
-class ExperienceBatch:
-    def __init__(self, experiences: list[Transition]):
-        self.size = len(experiences)
-
-        # Tensor[[0], [2], [1], ...]
-        self.actions = NeuralNetwork.tensorify([[exp.action] for exp in experiences])
-
-        # Tensor[-0.99, -0.99, ...]
-        self.rewards = NeuralNetwork.tensorify([exp.reward for exp in experiences])
-
-        # Tensor[State, State, ...]
-        # states are already torch tensors, so we can just use torch.stack
-        self.old_states = torch.stack([exp.old_state.tensor for exp in experiences])
-        self.new_states = torch.stack([exp.new_state.tensor for exp in experiences])
-
-        # Tensor[False, False, True, ...]
-        self.terminal = NeuralNetwork.tensorify(
-            [exp.new_state.terminal for exp in experiences]
-        )
-
-
 @dataclass
 class Experience:
     transition: Transition
     td_error: float
+
+
+class ExperienceBatch:
+    def __init__(self, experiences: list[Experience]):
+        self.size = len(experiences)
+        self.experiences = experiences 
+
+        # extract transition from Experience dataclass
+        transitions = [exp.transition for exp in experiences]
+
+        # Tensor[[0], [2], [1], ...]
+        self.actions = NeuralNetwork.tensorify([[t.action] for t in transitions])
+
+
+        # Tensor[-0.99, -0.99, ...]
+        self.rewards = NeuralNetwork.tensorify([t.reward for t in transitions])
+
+        # Tensor[State, State, ...]
+        # states are already torch tensors, so we can just use torch.stack
+        self.old_states = torch.stack([t.old_state.tensor for t in transitions])
+        self.new_states = torch.stack([t.new_state.tensor for t in transitions])
+
+        # Tensor[False, False, True, ...]
+        self.terminal = NeuralNetwork.tensorify([t.new_state.terminal for t in transitions])
+
+
+    def __iter__(self):
+        return iter(self.experiences)
+
 
 
 class ReplayBuffer:
@@ -54,12 +62,13 @@ class ReplayBuffer:
         self.buffer.append(experience)
 
     def get_batch(self, batch_size: int) -> ExperienceBatch:
-        priorities = [abs(exp.td_error) ** self.omega for exp in self.buffer]
+        c = 0.0001 # small constant (represented as epsilon in Prioritized Replay Experience paper)
+        priorities = [(abs(exp.td_error) + c) ** self.omega for exp in self.buffer]
         priorities = np.array(priorities)
         priorities = priorities / priorities.sum()
 
         indices = np.random.choice(len(self.buffer), batch_size, p=priorities)
-        experiences = [self.buffer[idx].transition for idx in indices]
+        experiences = [self.buffer[idx] for idx in indices]
 
         return ExperienceBatch(experiences)
 
@@ -187,6 +196,26 @@ class DQN:
             )
 
         self.target_network.load_state_dict(target_net_state)
+    
+    def re_compute_td_errors_batch(self, batch: ExperienceBatch):
+        # using target network for td targets
+        td_targets_batch = self.compute_td_targets_batch(batch).tensor
+        
+        # using network we just updated  (policy network)
+        q_values_batch = self.policy_network.get_q_values_batch(batch.old_states)  
+
+        # get actions
+        selected_actions = batch.actions.squeeze().long()  
+        selected_q_values_batch = q_values_batch.tensor.gather(1, selected_actions.unsqueeze(1)).squeeze() 
+
+        # calculate td errors
+        td_errors_batch = td_targets_batch - selected_q_values_batch
+        
+        # re compute new td_errors for our batch
+        for i, exp in enumerate(batch):
+            exp.td_error = td_errors_batch[i].item()
+
+
 
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.policy_network.backprop(experiences, td_targets)
@@ -211,11 +240,12 @@ class DQN:
                     transition = self.execute_action(action)
                     reward_sum += transition.reward
 
-                    td_target = self.compute_td_target(transition)
-                    td_error = td_target - self.get_q_value_for_action(
-                        transition.old_state, transition.action, policy_net=True
-                    )
-                    self.replay_buffer.add_experience(transition, td_error)
+                    # td_target = self.compute_td_target(transition)
+                    # td_error = td_target - self.get_q_value_for_action(
+                    #     transition.old_state, transition.action, policy_net=True
+                    # )
+                    max_priority = 99999999999
+                    self.replay_buffer.add_experience(transition, max_priority)
 
                     # print(
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
@@ -228,6 +258,9 @@ class DQN:
                         td_targets = self.compute_td_targets_batch(replay_batch)
 
                         self.backprop(replay_batch, td_targets)
+
+                        # re compute td errors based on updated network for prioritized experience replay
+                        self.re_compute_td_errors_batch(replay_batch)
 
                     timestep_C_count += 1
                     if timestep_C_count == self.C:
