@@ -2,7 +2,7 @@ import random
 from dataclasses import dataclass
 import math
 import collections
-from typing import Iterable
+from typing import Iterable, Deque
 
 import torch
 import numpy as np
@@ -51,20 +51,19 @@ class ExperienceBatch:
 
 class ReplayBuffer:
     def __init__(self, max_len=10000, omega=0.5):
-        self.buffer = collections.deque(maxlen=max_len)
+        self.buffer: Deque[Experience] = collections.deque(maxlen=max_len)
         self.omega = omega
 
     def add_experience(self, transition: Transition):
-        experience = Experience(transition, float("inf"))
+        experience = Experience(transition, 2.0**31)
         self.buffer.append(experience)
 
     def get_batch(self, batch_size: int) -> ExperienceBatch:
-        priorities = [abs(exp.td_error) ** self.omega for exp in self.buffer]
-        priorities = np.array(priorities)
-        priorities = priorities / priorities.sum()
+        priorities = np.array([exp.td_error for exp in self.buffer])
+        priorities /= priorities.sum()
 
         indices = np.random.choice(len(self.buffer), batch_size, p=priorities)
-        experiences = [self.buffer[idx].transition for idx in indices]
+        experiences = [self.buffer[idx] for idx in indices]
 
         return ExperienceBatch(self, experiences)
 
@@ -172,13 +171,14 @@ class DQN:
         return TdTargetBatch(td_targets)
 
     def update_experiences_td_errors(self, experiences: ExperienceBatch):
-        td_targets = self.compute_td_targets_batch(experiences)
+        td_targets = self.compute_td_targets_batch(experiences).tensor
 
-        q_values = self.target_network.get_q_values_batch(experiences.old_states)
-        q_values = q_values.for_actions(experiences.actions)
+        q_values = self.policy_network.get_q_values_batch(experiences.old_states)
+        q_values = q_values.for_actions(experiences.actions).squeeze(1)
 
-        td_errors = (td_targets - q_values) ** self.replay_buffer.omega
-        td_errors = td_errors.numpy()
+        c = 0.0001  # small constant (ϵ in Prioritized Replay Experience paper)
+        td_errors = (td_targets - q_values).abs() ** self.replay_buffer.omega + c
+        td_errors = td_errors.detach().cpu().numpy()
         experiences.update_td_errors(td_errors)
 
     def decay_epsilon(self, episode):
