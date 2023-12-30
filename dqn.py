@@ -159,7 +159,6 @@ class DQN:
         self.epsilon = self.epsilon_min + (
             self.epsilon_start - self.epsilon_min
         ) * math.exp(-self.decay_rate * episode)
-        print(f"Epsilon decayed to {self.epsilon}")
 
     def update_target_network(self):
         target_net_state = self.target_network.state_dict()
@@ -181,13 +180,13 @@ class DQN:
 
         try:
             timestep_C_count = 0
+            recent_rewards = collections.deque(maxlen=30)
             for episode in range(self.episode_count):
-                print(f"Episode: {episode}")
                 self.environment.reset()
 
-                timestep = 0
                 reward_sum = 0
-                won = False
+                transition = None
+                timestep = 0
 
                 for timestep in range(self.timestep_count):
                     state = self.environment.current_state  # S_t
@@ -216,13 +215,21 @@ class DQN:
 
                     # process termination
                     if transition.end_of_episode():
-                        won = transition.truncated
-                        won_str = "won" if won else "lost"
-                        print(
-                            f"Episode {episode+1} ended ({won_str}) after {timestep+1} timestaps"
-                            f" with total reward {reward_sum:.2f}"
-                        )
                         break
+
+                # episode ended
+                recent_rewards.append(reward_sum)
+
+                # print episode result
+                assert transition is not None
+                won = transition.truncated
+                won_str = "(won) " if won else "(lost)"
+                running_avg = sum(recent_rewards) / len(recent_rewards)
+                print(
+                    f"Episode {episode+1: <3} | {timestep+1: >3} timesteps {won_str}"
+                    f" | reward {reward_sum: <6.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards): <2})"
+                    f" | ε {self.epsilon:.2f}"
+                )
 
                 episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 self.decay_epsilon(episode)
@@ -231,4 +238,7 @@ class DQN:
         except KeyboardInterrupt:
             pass
 
-        plot_episode_data(episodes)
+        try:
+            plot_episode_data(episodes)
+        except KeyboardInterrupt:
+            pass  # ctrl-c to close plot

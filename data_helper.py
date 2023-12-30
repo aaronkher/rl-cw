@@ -14,7 +14,7 @@ class EpisodeData:
 
 # create function to plot total reward per episode
 def plot_episode_data(Episodes: list[EpisodeData]):
-    print(Episodes)
+    # print(Episodes)
     plt.figure(1)
     colours = np.where([episode.won for episode in Episodes], "g", "r")
     # plot total reward per episode and change colour based on if the episode was won or lost
