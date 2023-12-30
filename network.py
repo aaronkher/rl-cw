@@ -158,7 +158,7 @@ class NeuralNetwork(nn.Module):
         td_targets_tensor = td_targets.tensor.unsqueeze(1)
         # y = actual (target network)
 
-        criterion = torch.nn.MSELoss()
+        criterion = torch.nn.HuberLoss()
         loss = criterion(actions_chosen_q_values, td_targets_tensor)
 
         self.optim.zero_grad()
