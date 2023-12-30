@@ -55,7 +55,7 @@ class ReplayBuffer:
         self.omega = omega
 
     def add_experience(self, transition: Transition):
-        experience = Experience(transition, 2.0**31)
+        experience = Experience(transition, 9.)
         self.buffer.append(experience)
 
     def get_batch(self, batch_size: int) -> ExperienceBatch:
@@ -177,7 +177,7 @@ class DQN:
         q_values = q_values.for_actions(experiences.actions).squeeze(1)
 
         c = 0.0001  # small constant (ϵ in Prioritized Replay Experience paper)
-        td_errors = (td_targets - q_values).abs() ** self.replay_buffer.omega + c
+        td_errors = ((td_targets - q_values).abs() + c) ** self.replay_buffer.omega
         td_errors = td_errors.detach().cpu().numpy()
         experiences.update_td_errors(td_errors)
 
