@@ -38,15 +38,29 @@ class ExperienceBatch:
         )
 
 
-class ReplayBuffer:
-    def __init__(self, max_len=10000):
-        self.buffer = collections.deque(maxlen=max_len)
+@dataclass
+class Experience:
+    transition: Transition
+    td_error: float
 
-    def add_experience(self, experience: Transition):
+
+class ReplayBuffer:
+    def __init__(self, max_len=10000, omega=0.5):
+        self.buffer = collections.deque(maxlen=max_len)
+        self.omega = omega
+
+    def add_experience(self, transition: Transition, td_error: float):
+        experience = Experience(transition, td_error)
         self.buffer.append(experience)
 
     def get_batch(self, batch_size: int) -> ExperienceBatch:
-        experiences = random.sample(self.buffer, batch_size)
+        priorities = [abs(exp.td_error) ** self.omega for exp in self.buffer]
+        priorities = np.array(priorities)
+        priorities = priorities / priorities.sum()
+
+        indices = np.random.choice(len(self.buffer), batch_size, p=priorities)
+        experiences = [self.buffer[idx].transition for idx in indices]
+
         return ExperienceBatch(experiences)
 
     def size(self) -> int:
@@ -108,8 +122,11 @@ class DQN:
         return self.policy_network.get_q_values(state)
 
     # using target network here to estimate q values
-    def get_q_value_for_action(self, state: State, action: Action) -> float:
-        neural_network_result = self.target_network.get_q_values(state)
+    def get_q_value_for_action(
+        self, state: State, action: Action, policy_net=False
+    ) -> float:
+        network = self.policy_network if policy_net else self.target_network
+        neural_network_result = network.get_q_values(state)
         return neural_network_result.q_value_for_action(action)
 
     def compute_td_target(self, experience: Transition) -> float:
@@ -123,10 +140,9 @@ class DQN:
         if current_state.terminal:  # terminal experience
             td_target = last_reward
         else:
-            action = self.get_best_action(current_state)
-            td_target = last_reward + self.gamma * self.get_q_value_for_action(
-                current_state, action
-            )
+            target_net_result = self.target_network.get_q_values(current_state)
+            best_q_value = target_net_result.best_action_q_value()
+            td_target = last_reward + self.gamma * best_q_value
 
         return td_target
 
@@ -193,8 +209,13 @@ class DQN:
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
 
                     transition = self.execute_action(action)
-                    self.replay_buffer.add_experience(transition)
                     reward_sum += transition.reward
+
+                    td_target = self.compute_td_target(transition)
+                    td_error = td_target - self.get_q_value_for_action(
+                        transition.old_state, transition.action, policy_net=True
+                    )
+                    self.replay_buffer.add_experience(transition, td_error)
 
                     # print(
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
