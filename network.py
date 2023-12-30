@@ -164,4 +164,7 @@ class NeuralNetwork(nn.Module):
         self.optim.zero_grad()
         loss.backward()
 
+        # clip gradients
+        nn.utils.clip_grad.clip_grad_value_(self.parameters(), 100.0)
+
         self.optim.step()  # gradient descent
