@@ -97,14 +97,10 @@ class DQN:
 
         self.environment = Environment()
 
-        # initialise replay memory
         self.replay_buffer = ReplayBuffer()
-        # initialise q1
-        self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
-        # initialise q2
-        self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())
-        # copy q2 to q1
-        self.policy_network.load_state_dict(self.target_network.state_dict())
+        self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device()) # q1 / θ
+        self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device()) # q2 / θ-
+        self.policy_network.load_state_dict(self.target_network.state_dict()) # copy q2 to q1
 
     def get_best_action(self, state: State) -> Action:
         return self.policy_network.get_best_action(state)
