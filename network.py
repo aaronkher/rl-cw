@@ -46,6 +46,9 @@ class NeuralNetworkResultBatch:
 
         # Tensor[[QValue], [QValue], ...]
         return self.tensor.gather(1, actions)
+    
+    def best_actions(self) -> torch.Tensor:
+        return self.tensor.argmax(1)
 
     def __getitem__(self, index: int) -> NeuralNetworkResult:
         """Override index operator e.g. batch[0] -> NeuralNetworkResult"""

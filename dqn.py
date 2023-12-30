@@ -130,6 +130,7 @@ class DQN:
     def compute_td_target(self, experience: Transition) -> float:
         # TD Target is the last reward + the expected reward of the
         # best action in the next state, discounted.
+        # Note: this function does not use double dqn! (yet)
 
         # the reward and state after the last action was taken:
         last_reward = experience.reward  # R_t
@@ -145,25 +146,34 @@ class DQN:
         return td_target
 
     def compute_td_targets_batch(self, experiences: ExperienceBatch) -> TdTargetBatch:
-        # td target is:
-        # reward + discounted qvalue  (if not terminal)
-        # reward + 0                  (if terminal)
+        # using double dqn:
+        # td_target = R_t+1 + γ * max_a' q_θ-(S_t+1, argmax_a' q_θ(S_t+1, a'))
+
+        # the best action in S_t+1, according to the policy network
+        best_actions = self.policy_network.get_q_values_batch(experiences.new_states).best_actions()
+        best_actions = best_actions.unsqueeze(1)
+
+        # the q-value of that action, according to the target network
+        q_values = self.target_network.get_q_values_batch(experiences.new_states).for_actions(best_actions)
+        q_values = q_values.squeeze(1)
+        q_values[experiences.terminal] = 0
+        q_values *= self.gamma
+
+        # # Tensor[[QValue * 3], [QValue * 3], ...]
+        # discounted_qvalues = self.target_network.get_q_values_batch(experiences.new_states)
+        # discounted_qvalues_tensor = discounted_qvalues.tensor
+
+        # # pick the QValue associated with the best action
+        # # Tensor[QValue, QValue, ...]
+        # discounted_qvalues_tensor = discounted_qvalues_tensor.max(1).values
+        # discounted_qvalues_tensor[experiences.terminal] = 0
+        # discounted_qvalues_tensor *= self.gamma
 
         # Tensor[-0.99, -0.99, ...]
         rewards = experiences.rewards
 
-        # Tensor[[QValue * 3], [QValue * 3], ...]
-        discounted_qvalues = self.target_network.get_q_values_batch(experiences.new_states)
-        discounted_qvalues_tensor = discounted_qvalues.tensor
-
-        # pick the QValue associated with the best action
-        # Tensor[QValue, QValue, ...]
-        discounted_qvalues_tensor = discounted_qvalues_tensor.max(1).values
-        discounted_qvalues_tensor[experiences.terminal] = 0
-        discounted_qvalues_tensor *= self.gamma
-
         # Tensor[TDTarget, TDTarget, ...]
-        td_targets = rewards + discounted_qvalues_tensor
+        td_targets = rewards + q_values
         return TdTargetBatch(td_targets)
 
     def update_experiences_td_errors(self, experiences: ExperienceBatch):
