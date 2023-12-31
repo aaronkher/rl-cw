@@ -71,8 +71,9 @@ class NeuralNetwork(nn.Module):
         super(NeuralNetwork, self).__init__()
 
         n = 128
+        input_size = 25 # TODO: don't hardcode
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(env.observation_space_length, n),
+            nn.Linear(input_size, n),
             nn.ReLU(),
             nn.Linear(n, n),
             nn.ReLU(),
@@ -109,6 +110,7 @@ class NeuralNetwork(nn.Module):
                 utility methods such as q_value_for_action() to make our lives
                 easier.
         """
+
 
         neural_network_output = self(state.tensor)
         return NeuralNetworkResult(neural_network_output)

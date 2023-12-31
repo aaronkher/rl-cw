@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 import torch
 import gymnasium
-
 from network import NeuralNetwork
+
 
 
 Action = int
@@ -32,7 +32,7 @@ class Transition:
 
 class Environment:
     def __init__(self):
-        self.env = gymnasium.make("CartPole-v1")
+        self.env = gymnasium.make("highway-v0")
 
         self.reset()
         self.current_state: State
@@ -45,12 +45,10 @@ class Environment:
 
     @property
     def action_count(self) -> int:
-        # 2 for cartpole
         return len(self.action_list)
 
     @property
     def observation_space_length(self) -> int:
-        # 4 for cartpole
         return sum(self.env.observation_space.shape)  # type: ignore
 
     def take_action(self, action: Action) -> Transition:
@@ -58,7 +56,7 @@ class Environment:
         (new_state_ndarray, _reward, terminated, truncated, _) = self.env.step(action)
 
         device = NeuralNetwork.device()
-        new_state_tensor = torch.from_numpy(new_state_ndarray).to(device)
+        new_state_tensor = torch.from_numpy(new_state_ndarray).flatten().to(device)
         new_state = State(new_state_tensor, terminated)
         reward = float(_reward)
 
@@ -74,7 +72,7 @@ class Environment:
 
     def reset(self):
         (current_state, _) = self.env.reset()
-        current_state = NeuralNetwork.tensorify(current_state)
+        current_state = NeuralNetwork.tensorify(current_state).flatten()
         current_state = State(current_state, False)
 
         self.current_state = current_state
