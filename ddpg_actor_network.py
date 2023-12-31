@@ -71,7 +71,8 @@ class DDPGActorNetwork(nn.Module):
             nn.Tanh()
         )
 
-        self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
+        # self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
+        self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4)
 
         # do not call directly, call get_q_values() instead
     def forward(self, state: torch.Tensor) -> torch.Tensor:
@@ -123,12 +124,17 @@ class DDPGActorNetwork(nn.Module):
 
         # Tensor[QValue, QValue, ...]
         # where QValue is float
-        q_values = critic_network.get_q_value_batch(experiences.old_states, experiences.actions)
+        q_values = -critic_network.get_q_value_batch(
+            experiences.old_states, 
+            self.get_action_batch(experiences.old_states)
+            )
 
-        action_values = self(experiences.old_states)
+        loss = q_values.mean()
 
-        criterion = torch.nn.MSELoss()
-        loss = -criterion(action_values, q_values) # not sure if this is valid syntax
+        # action_values = self(experiences.old_states)
+
+        # criterion = torch.nn.MSELoss()
+        # loss = -criterion(action_values, q_values) # not sure if this is valid syntax
         loss.backward()
         #clip_grad_norm_(self.parameters(), 1)
 

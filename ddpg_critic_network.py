@@ -62,7 +62,7 @@ class DDPGCriticNetwork(nn.Module):
         n=128
 
         self.critic_network = nn.Sequential(
-            nn.Linear(self.env.observation_space_length + 1, n),
+            nn.Linear(self.env.observation_space_length + self.env.action_count, n),
             nn.ReLU(),
             nn.Linear(n, n),
             nn.ReLU(),
@@ -70,7 +70,8 @@ class DDPGCriticNetwork(nn.Module):
             nn.Tanh()
         )
 
-        self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
+        # self.optim = torch.optim.SGD(self.parameters(), lr=1e-4, momentum=0.9)
+        self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4)
 
         # do not call directly, call get_q_values() instead
     def forward(self, state: torch.Tensor) -> torch.Tensor:

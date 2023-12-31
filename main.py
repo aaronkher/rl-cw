@@ -17,8 +17,9 @@ if __name__ == "__main__":
     ddpg = DDPG(
         episode_count=1000,
         timestep_count=1000,
-        gamma=0.9,
-        target_network_learning_rate=0.9,
+        gamma=0.99,
+        sigma=0.3,
+        target_network_learning_rate=0.005,
         buffer_batch_size=100,
     )
     ddpg.train()

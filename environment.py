@@ -25,8 +25,8 @@ class ActionResult:
 class Environment:
     def __init__(self, environment_name: str = "MountainCar-v0"):
         # self.env = gymnasium.make("MountainCar-v0", render_mode="human")
-        # self.env = gymnasium.make(environment_name, render_mode="human")
-        self.env = gymnasium.make(environment_name)
+        self.env = gymnasium.make(environment_name, render_mode="human")
+        # self.env = gymnasium.make(environment_name)
 
         self.reset()
         self.last_action_taken: ActionResult

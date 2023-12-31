@@ -3,6 +3,7 @@ import numpy as np
 import collections
 import math
 import random
+import time
 
 from dataclasses import dataclass
 from dqn import TdTargetBatch, Experience
@@ -57,12 +58,14 @@ class DDPG:
         # epsilon_min: float = 0.01,
         # epsilon_decay: float = 0.05,
         # C: int = 50,
+        sigma = 0.5,
         buffer_batch_size: int = 100,
-        target_network_learning_rate = 0.9,
+        target_network_learning_rate = 0.001,
     ):
         self.episode_count = episode_count
         self.timestep_count = timestep_count
-
+        self.decay = 0
+        self.sigma = sigma
         # self.epsilon_start = epsilon_start
         # self.epsilon_min = epsilon_min
         # self.decay_rate = epsilon_decay
@@ -104,24 +107,21 @@ class DDPG:
     def get_action_according_to_policy(self, state: State) -> Action:
         return self.actor_network.get_action(state)
 
-    def add_ou_noise(self, x, mu=0.0, theta=0.05, sigma=0.3): #mu is mean, theta is friction, sigma is noise
-        dx = theta * (mu - x) + sigma * np.random.randn()
-        return dx
+    def add_ou_noise(self, x, mu=0.0, theta=0.15, sigma=0.5): #mu is mean, theta is friction, sigma is noise
+        dx = (theta * (mu - x) + sigma * np.random.randn())
+        return x + dx
 
     def get_action(self, state: State):
         # randomly generate noise and add it to the action
 
-        # TODO come up with a not stupid way of doing this
-        # noise = np.random.uniform(-1, 1)
-
-        # noise = np.random.normal(0, 0.2) # mean 0, std 0.3
-
         action = self.get_action_according_to_policy(state)
         # action += noise
-        action = self.add_ou_noise(action)
+        action += self.add_ou_noise(action, sigma=self.sigma)
 
         # clamp action between -1 and 1
-        action = min(max(action, -1.0), 1.0)
+        action = min(max(action, -2.0), 2.0)
+        # print(action)
+        # time.sleep(0.3)
         return action
 
     def execute_action(self, action: Action) -> ActionResult:
@@ -170,27 +170,33 @@ class DDPG:
     #     print(f"Epsilon decayed to {self.epsilon}")
 
     def update_target_networks(self):
-        target_critic_weights = self.target_critic_network.state_dict()
-        critic_weights = self.critic_network.state_dict()
+        # target_critic_weights = self.target_critic_network.state_dict()
+        # critic_weights = self.critic_network.state_dict()
 
-        for key in target_critic_weights:
-            target_critic_weights[key] = (
-                self.target_network_learning_rate * critic_weights[key] +
-                (1 - self.target_network_learning_rate) * target_critic_weights[key]
-            )
+        # for key in target_critic_weights:
+        #     target_critic_weights[key] = (
+        #         self.target_network_learning_rate * critic_weights[key] +
+        #         (1 - self.target_network_learning_rate) * target_critic_weights[key]
+        #     )
 
-        self.target_critic_network.load_state_dict(target_critic_weights)
+        # self.target_critic_network.load_state_dict(target_critic_weights)
 
-        target_actor_weights = self.target_actor_network.state_dict()
-        actor_weights = self.actor_network.state_dict()
+        # target_actor_weights = self.target_actor_network.state_dict()
+        # actor_weights = self.actor_network.state_dict()
 
-        for key in target_actor_weights:
-            target_actor_weights[key] = (
-                self.target_network_learning_rate * actor_weights[key] +
-                (1 - self.target_network_learning_rate) * target_actor_weights[key]
-            )
+        # for key in target_actor_weights:
+        #     target_actor_weights[key] = (
+        #         self.target_network_learning_rate * actor_weights[key] +
+        #         (1 - self.target_network_learning_rate) * target_actor_weights[key]
+        #     )
 
-        self.target_actor_network.load_state_dict(target_actor_weights)
+        # self.target_actor_network.load_state_dict(target_actor_weights)
+
+        for target_param, param in zip(self.target_actor_network.parameters(), self.actor_network.parameters()):
+            target_param.data.copy_(param.data * self.target_network_learning_rate + target_param.data * (1.0 - self.target_network_learning_rate))
+       
+        for target_param, param in zip(self.target_critic_network.parameters(), self.critic_network.parameters()):
+            target_param.data.copy_(param.data * self.target_network_learning_rate + target_param.data * (1.0 - self.target_network_learning_rate))
 
     def backprop_critic(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
         self.critic_network.backprop(experiences, td_targets)
@@ -200,6 +206,7 @@ class DDPG:
 
     def train(self):
         episodes = []
+        mean_rewards = []
         create_figure()
         try:
             # timestep_C_count = 0
@@ -212,6 +219,7 @@ class DDPG:
                 won = False
 
                 for timestep in range(self.timestep_count):
+                    self.sigma = self.sigma * (0.999) # decaying exploration noise
                     state = self.environment.current_state  # S_t
 
                     action = self.get_action(state)  # A_t
@@ -228,7 +236,7 @@ class DDPG:
                         action_result.new_state,
                         action,
                         action_result.reward,
-                        action_result.terminal and action_result.won,
+                        action_result.terminal and not action_result.won,
                     )
                     self.replay_buffer.add_experience(experience)
 
@@ -264,8 +272,10 @@ class DDPG:
                         break
 
                 if (episode % 10 == 0):
+                    # mean_rewards.append(np.mean([episode.reward for episode in episodes[-10:]]))
                     plot_episode_data(episodes) # comment out if you don't want live plot updates
                 episodes.append(EpisodeData(episode, reward_sum, timestep, won))
+                self.decay += 1
                 # self.decay_epsilon(episode)
                 # print(f"Episode {episode} finished with total reward {reward_sum}")
 
