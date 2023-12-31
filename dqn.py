@@ -80,7 +80,6 @@ class DQN:
         epsilon_start: float = 0.9,
         epsilon_min: float = 0.01,
         epsilon_decay: float = 0.05,
-        C: int = 50,
         buffer_batch_size: int = 100,
     ):
         self.episode_count = episode_count
@@ -92,7 +91,6 @@ class DQN:
         self.epsilon = epsilon_start
 
         self.gamma = gamma
-        self.C = C
         self.buffer_batch_size = buffer_batch_size
 
         self.environment = Environment()
@@ -240,10 +238,7 @@ class DQN:
                         self.backprop(replay_batch, td_targets)
                         self.update_experiences_td_errors(replay_batch)
 
-                    timestep_C_count += 1
-                    if timestep_C_count == self.C:
-                        self.update_target_network()
-                        timestep_C_count = 0
+                    self.update_target_network()
 
                     # process termination
                     if transition.end_of_episode():

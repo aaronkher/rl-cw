@@ -8,7 +8,6 @@ if __name__ == "__main__":
         epsilon_start=0.9,
         epsilon_min=0.05,
         epsilon_decay=0.02,
-        C=1,
         buffer_batch_size=128,
     )
     dqn.train()
