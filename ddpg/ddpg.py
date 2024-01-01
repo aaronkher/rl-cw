@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import torch
 from data_helper import LivePlot
 from environment import Action, MountainCarContinuousEnv, State
-from replay_buffer import ExperienceBatch, ReplayBuffer
+from replay_buffer import TransitionBatch, ReplayBuffer
 
 
 @dataclass
@@ -41,13 +41,13 @@ class DDPG:
     def get_action(self, state: State) -> Action:
         raise "TODO"
 
-    def compute_td_targets(self, experiences: ExperienceBatch) -> TdTargetBatch:
+    def compute_td_targets(self, experiences: TransitionBatch) -> TdTargetBatch:
         raise "TODO"
 
-    def train_critic_network(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
+    def train_critic_network(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
         raise "TODO"
 
-    def train_actor_network(self, experiences: ExperienceBatch):
+    def train_actor_network(self, experiences: TransitionBatch):
         raise "TODO"
 
     def update_target_networks(self):

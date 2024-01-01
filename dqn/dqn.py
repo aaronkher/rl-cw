@@ -11,7 +11,7 @@ from dqn.dqn_network import DqnNetwork, DqnNetworkResult
 from environment import CartpoleEnv, Environment, Action, State, Transition
 from network import NeuralNetwork
 from data_helper import LivePlot
-from replay_buffer import ExperienceBatch, ReplayBuffer
+from replay_buffer import TransitionBatch, TransitionBuffer
 
 
 @dataclass
@@ -44,7 +44,7 @@ class DQN:
 
         self.environment = CartpoleEnv()
 
-        self.replay_buffer = ReplayBuffer()
+        self.transition_buffer = TransitionBuffer(omega=0.5)
         self.policy_network = DqnNetwork(self.environment)  # q1 / θ
         self.target_network = self.policy_network.create_copy()  # q2 / θ-
 
@@ -91,7 +91,7 @@ class DQN:
 
         return td_target
 
-    def compute_td_targets_batch(self, experiences: ExperienceBatch) -> TdTargetBatch:
+    def compute_td_targets_batch(self, experiences: TransitionBatch) -> TdTargetBatch:
         # using double dqn:
         # td_target = R_t+1 + γ * max_a' q_θ-(S_t+1, argmax_a' q_θ(S_t+1, a'))
 
@@ -112,14 +112,14 @@ class DQN:
         td_targets = rewards + q_values
         return TdTargetBatch(td_targets)
 
-    def update_experiences_td_errors(self, experiences: ExperienceBatch):
+    def update_experiences_td_errors(self, experiences: TransitionBatch):
         td_targets = self.compute_td_targets_batch(experiences).tensor
 
         q_values = self.policy_network.get_q_values_batch(experiences.old_states)
         q_values = q_values.for_actions(experiences.actions).squeeze(1)
 
         c = 0.0001  # small constant (ϵ in Prioritized Replay Experience paper)
-        td_errors = ((td_targets - q_values).abs() + c) ** self.replay_buffer.omega
+        td_errors = ((td_targets - q_values).abs() + c) ** self.transition_buffer.omega
         td_errors = td_errors.detach().cpu().numpy()
         experiences.update_td_errors(td_errors)
 
@@ -139,7 +139,7 @@ class DQN:
 
         self.target_network.load_state_dict(target_net_state)
 
-    def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
+    def backprop(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
         self.policy_network.train(experiences, td_targets)
 
     def train(self):
@@ -163,14 +163,14 @@ class DQN:
 
                     transition = self.execute_action(action)
                     reward_sum += transition.reward
-                    self.replay_buffer.add_experience(transition)
+                    self.transition_buffer.add(transition)
 
                     # print(
                     #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
                     # )
 
-                    if self.replay_buffer.size() > self.buffer_batch_size:
-                        replay_batch = self.replay_buffer.get_batch(self.buffer_batch_size)
+                    if self.transition_buffer.size() > self.buffer_batch_size:
+                        replay_batch = self.transition_buffer.get_batch(self.buffer_batch_size)
                         td_targets = self.compute_td_targets_batch(replay_batch)
 
                         self.backprop(replay_batch, td_targets)

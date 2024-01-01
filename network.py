@@ -9,13 +9,13 @@ from torch import nn
 # prevent circular import
 if TYPE_CHECKING:
     from environment import State, Environment, Action
-    from dqn.dqn import ExperienceBatch, TdTargetBatch
+    from dqn.dqn import TransitionBatch, TdTargetBatch
 else:
     Experience = object
     State = object
     Action = object
     Environment = object
-    ExperienceBatch = object
+    TransitionBatch = object
     TdTargetBatch = object
 
 
@@ -69,7 +69,7 @@ class NeuralNetwork(nn.Module):
 
         return self.linear_relu_stack(state)
 
-    def backprop(self, expected: torch.Tensor, actual: torch.Tensor):
+    def gradient_descent(self, expected: torch.Tensor, actual: torch.Tensor):
         criterion = torch.nn.HuberLoss()
         loss = criterion(expected, actual)
 

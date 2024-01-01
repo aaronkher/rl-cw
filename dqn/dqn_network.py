@@ -11,13 +11,13 @@ from network import NeuralNetwork
 # prevent circular import
 if TYPE_CHECKING:
     from environment import State, Environment, Action
-    from dqn.dqn import ExperienceBatch, TdTargetBatch
+    from dqn.dqn import TransitionBatch, TdTargetBatch
 else:
     Experience = object
     State = object
     Action = object
     Environment = object
-    ExperienceBatch = object
+    TransitionBatch = object
     TdTargetBatch = object
 
 
@@ -113,7 +113,7 @@ class DqnNetwork(NeuralNetwork):
         neural_network_result = self.get_q_values(state)
         return neural_network_result.best_action()
 
-    def train(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
+    def train(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
         # Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
         experience_states = experiences.old_states
@@ -135,4 +135,4 @@ class DqnNetwork(NeuralNetwork):
         td_targets_tensor = td_targets.tensor.unsqueeze(1)
         # y = actual (target network)
 
-        self.backprop(actions_chosen_q_values, td_targets_tensor)
+        self.gradient_descent(actions_chosen_q_values, td_targets_tensor)
