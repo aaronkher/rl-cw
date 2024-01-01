@@ -70,14 +70,17 @@ class NeuralNetwork(nn.Module):
     def __init__(self, env: Environment):
         super(NeuralNetwork, self).__init__()
 
-        n = 128
+        n = 256
         input_size = 25 # TODO: don't hardcode
+        output = 5
         self.linear_relu_stack = nn.Sequential(
             nn.Linear(input_size, n),
             nn.ReLU(),
+            nn.Dropout(p=0.5),
             nn.Linear(n, n),
             nn.ReLU(),
-            nn.Linear(n, env.action_count),
+            nn.Dropout(p=0.5),
+            nn.Linear(n, output),
         )
 
         self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)

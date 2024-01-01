@@ -2,6 +2,7 @@ import random
 from dataclasses import dataclass
 import math
 import collections
+from matplotlib import pyplot as plt
 
 import torch
 import numpy as np
@@ -234,6 +235,9 @@ class DQN:
                 timestep = 0
 
                 for timestep in range(self.timestep_count):
+                    # plt.imshow(self.environment.env.render())
+                    # plt.show()
+
                     state = self.environment.current_state  # S_t
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
 
@@ -244,7 +248,7 @@ class DQN:
                     # td_error = td_target - self.get_q_value_for_action(
                     #     transition.old_state, transition.action, policy_net=True
                     # )
-                    max_priority = 99999999999
+                    max_priority = 9
                     self.replay_buffer.add_experience(transition, max_priority)
 
                     # print(
