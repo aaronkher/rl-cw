@@ -63,9 +63,16 @@ class DqnNetworkResultBatch:
 
 class DqnNetwork(NeuralNetwork):
     def __init__(self, env: Environment):
+        self.environment = env
+
         inputs = env.observation_space_length
         outputs = env.action_count
         super(DqnNetwork, self).__init__(inputs, outputs)
+
+    def create_copy(self) -> "DqnNetwork":
+        copy = DqnNetwork(self.environment)
+        copy.copy_from(self)
+        return copy
 
     def get_q_values(self, state: State) -> DqnNetworkResult:
         """For a given state, pass it through the neural network and return

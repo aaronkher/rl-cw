@@ -46,8 +46,7 @@ class DQN:
 
         self.replay_buffer = ReplayBuffer()
         self.policy_network = DqnNetwork(self.environment)  # q1 / θ
-        self.target_network = DqnNetwork(self.environment)  # q2 / θ-
-        self.policy_network.copy_from(self.target_network)  # copy q2 to q1
+        self.target_network = self.policy_network.create_copy()  # q2 / θ-
 
     def get_best_action(self, state: State) -> Action:
         return self.policy_network.get_best_action(state)

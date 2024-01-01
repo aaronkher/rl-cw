@@ -49,6 +49,9 @@ class NeuralNetwork(nn.Module):
         # move to gpu if possible
         self.to(NeuralNetwork.device())
 
+    def create_copy(self):
+        raise NotImplementedError  # need to subclass this
+
     def copy_from(self, other: "NeuralNetwork"):
         self.load_state_dict(other.state_dict())
 
