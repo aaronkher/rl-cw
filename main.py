@@ -1,4 +1,4 @@
-from dqn import DQN
+from dqn.dqn import DQN
 
 if __name__ == "__main__":
     dqn = DQN(

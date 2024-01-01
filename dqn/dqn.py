@@ -6,9 +6,10 @@ from typing import Iterable, Deque
 
 import torch
 import numpy as np
+from dqn.dqn_network import DqnNetwork, DqnNetworkResult
 
 from environment import Environment, Action, State, Transition
-from network import NeuralNetwork, NeuralNetworkResult
+from network import NeuralNetwork
 from data_helper import LivePlot
 
 
@@ -96,9 +97,9 @@ class DQN:
         self.environment = Environment()
 
         self.replay_buffer = ReplayBuffer()
-        self.policy_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())  # q1 / θ
-        self.target_network = NeuralNetwork(self.environment).to(NeuralNetwork.device())  # q2 / θ-
-        self.policy_network.load_state_dict(self.target_network.state_dict())  # copy q2 to q1
+        self.policy_network = DqnNetwork(self.environment)  # q1 / θ
+        self.target_network = DqnNetwork(self.environment)  # q2 / θ-
+        self.policy_network.copy_from(self.target_network)  # copy q2 to q1
 
     def get_best_action(self, state: State) -> Action:
         return self.policy_network.get_best_action(state)
@@ -116,7 +117,7 @@ class DQN:
         return self.environment.take_action(action)
 
     # using policy
-    def get_q_values(self, state: State) -> NeuralNetworkResult:
+    def get_q_values(self, state: State) -> DqnNetworkResult:
         return self.policy_network.get_q_values(state)
 
     # using target network here to estimate q values
@@ -157,16 +158,6 @@ class DQN:
         q_values[experiences.terminal] = 0
         q_values *= self.gamma
 
-        # # Tensor[[QValue * 3], [QValue * 3], ...]
-        # discounted_qvalues = self.target_network.get_q_values_batch(experiences.new_states)
-        # discounted_qvalues_tensor = discounted_qvalues.tensor
-
-        # # pick the QValue associated with the best action
-        # # Tensor[QValue, QValue, ...]
-        # discounted_qvalues_tensor = discounted_qvalues_tensor.max(1).values
-        # discounted_qvalues_tensor[experiences.terminal] = 0
-        # discounted_qvalues_tensor *= self.gamma
-
         # Tensor[-0.99, -0.99, ...]
         rewards = experiences.rewards
 
@@ -202,7 +193,7 @@ class DQN:
         self.target_network.load_state_dict(target_net_state)
 
     def backprop(self, experiences: ExperienceBatch, td_targets: TdTargetBatch):
-        self.policy_network.backprop(experiences, td_targets)
+        self.policy_network.train(experiences, td_targets)
 
     def train(self):
         episodes = []
