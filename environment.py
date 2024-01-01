@@ -31,12 +31,17 @@ class Transition:
 
 
 class Environment:
-    def __init__(self):
-        self.env = gymnasium.make("CartPole-v1")
+    def __init__(self, env_name: str, render: bool = False):
+        # self.env = gymnasium.make("CartPole-v1")
+        render_mode = "human" if render else None
+        self.env = gymnasium.make(env_name, render_mode=render_mode)
 
         self.reset()
         self.current_state: State
         self.last_action_taken: Transition | None
+
+    def won(self, transition: Transition) -> bool:
+        raise NotImplementedError # needs to be subclassed
 
     @property
     def action_list(self) -> list[Action]:
@@ -88,3 +93,19 @@ class Environment:
     def last_reward(self) -> float:
         assert self.last_action_taken is not None
         return self.last_action_taken.reward
+
+class CartpoleEnv(Environment):
+    def __init__(self, render: bool = False):
+        super().__init__("CartPole-v1", render)
+
+    def won(self, transition: Transition) -> bool:
+        # truncated means we survived long enough
+        return transition.truncated
+
+class MountainCarContinuousEnv(Environment):
+    def __init__(self, render: bool = False):
+        super().__init__("MountainCarContinuous-v0", render)
+
+    def won(self, transition: Transition) -> bool:
+        # truncated means we didn't reach the end
+        return not transition.truncated

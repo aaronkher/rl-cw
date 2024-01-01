@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from dqn.dqn_network import DqnNetwork, DqnNetworkResult
 
-from environment import Environment, Action, State, Transition
+from environment import CartpoleEnv, Environment, Action, State, Transition
 from network import NeuralNetwork
 from data_helper import LivePlot
 from replay_buffer import ExperienceBatch, ReplayBuffer
@@ -42,7 +42,7 @@ class DQN:
         self.gamma = gamma
         self.buffer_batch_size = buffer_batch_size
 
-        self.environment = Environment()
+        self.environment = CartpoleEnv()
 
         self.replay_buffer = ReplayBuffer()
         self.policy_network = DqnNetwork(self.environment)  # q1 / θ
