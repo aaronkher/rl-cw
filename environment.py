@@ -37,8 +37,13 @@ class Environment:
             raise Exception("Env error")
         if self.env.observation_space is None or self.env.observation_space.shape is None:
             raise Exception("observation space error")
-
+        
         self.reset()
+
+        print(f"Observation Space Dimensions: {self.env.observation_space.shape}")
+        print(f"Action Space Dimensions: {self.env.action_space.shape}")
+        print(f"Number of Actions: {self.env.action_space.n}")  # type: ignore
+        print("")
         self.current_state: State
         self.last_action_taken: Transition | None
 

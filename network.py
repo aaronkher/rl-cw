@@ -69,18 +69,37 @@ class NeuralNetwork(nn.Module):
 
     def __init__(self, env: Environment):
         super(NeuralNetwork, self).__init__()
+        
+        # ACTION SPACE DETAILS
+        self.ACTIONS_COUNT = 5 # TODO: DON'T HARDCODE
 
-        n = 256
-        input_size = 25 # TODO: don't hardcode
-        output = 5
+        # STATE SPACE DETAILS
+        self.IMAGE_ROWS = 5 # TODO: DON'T HARDCODE
+        self.IMAGE_COLUMNS = 5 # TODO: DON'T HARDCODE
+        self.IMAGE_CHANNELS = 1 # 1 for greyscale # TODO: DON'T HARDCODE
+
+        # CNN - for input image processing
+        # https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(in_channels=self.IMAGE_CHANNELS, out_channels=16, kernel_size=3, stride=1, padding=1), 
+            nn.ReLU(),
+            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Flatten()
+        )
+
+        with torch.no_grad():
+            input_size = torch.zeros(1, self.IMAGE_CHANNELS, self.IMAGE_ROWS, self.IMAGE_COLUMNS)
+            # flatten for passing to FNN
+            self.flattened_size = self.conv_layers(input_size).shape[1]
+
+        # Feed Forward Neural Network (FNN) - for DQN
+        ffn_input_neurons = self.flattened_size
+        ffn_neurons = 128
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(input_size, n),
+            nn.Linear(ffn_input_neurons, ffn_neurons),
             nn.ReLU(),
-            nn.Dropout(p=0.5),
-            nn.Linear(n, n),
-            nn.ReLU(),
-            nn.Dropout(p=0.5),
-            nn.Linear(n, output),
+            nn.Linear(ffn_neurons, self.ACTIONS_COUNT)
         )
 
         self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
@@ -96,8 +115,8 @@ class NeuralNetwork(nn.Module):
         Returns:
             torch.Tensor: a tensor of length 3 (one q-value for each action)
         """
-
-        return self.linear_relu_stack(state)
+        x = self.conv_layers(state)
+        return self.linear_relu_stack(x)
 
     # need to return the q value for an action AND
     # return the corresponding action so DQN class knows what to use
@@ -113,9 +132,9 @@ class NeuralNetwork(nn.Module):
                 utility methods such as q_value_for_action() to make our lives
                 easier.
         """
-
-
-        neural_network_output = self(state.tensor)
+        batch_size = 1
+        state_tensor = state.tensor.view(batch_size, self.IMAGE_CHANNELS, self.IMAGE_ROWS, self.IMAGE_COLUMNS)  
+        neural_network_output = self(state_tensor)
         return NeuralNetworkResult(neural_network_output)
 
     def get_q_values_batch(self, states: torch.Tensor) -> NeuralNetworkResultBatch:
