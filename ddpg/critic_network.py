@@ -3,6 +3,7 @@ from ddpg.ddpg import TdTargetBatch
 from dqn.dqn_network import DqnNetwork, DqnNetworkResultBatch
 from environment import Action, Environment, State
 from replay_buffer import TransitionBatch
+from network import NeuralNetwork
 
 
 class CriticNetworkResults:
@@ -21,15 +22,6 @@ class CriticNetwork(DqnNetwork):
         copy = CriticNetwork(self.environment)
         copy.copy_from(self)
         return copy
-
-    # def input_tensor(self, state: State, action: Action) -> torch.Tensor:
-    #     action_tensor = torch.tensor([action])
-    #     return torch.cat([state.tensor, action_tensor])
-
-    # def get_q_values(self, state: State, action: Action) -> CriticNetworkResults:
-    #     input = self.input_tensor(state, action)
-    #     output = self(input)
-    #     return CriticNetworkResults(output)
 
     def get_q_values(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         input = torch.cat([state, action], dim=1)
@@ -55,3 +47,15 @@ class CriticNetwork(DqnNetwork):
         # y = actual (target network)
 
         self.gradient_descent(q_values, td_targets_tensor)
+
+    def gradient_descent(self, q_values: torch.Tensor, td_targets: torch.Tensor):
+        self.optim.zero_grad()
+
+        loss = torch.nn.functional.mse_loss(q_values, td_targets)
+        loss.backward()
+
+        self.optim.step()
+
+    def update_target_weights(self, network_to_copy: NeuralNetwork, target_network_learning_rate: float):
+        for target_param, param in zip(self.linear_relu_stack.parameters(), network_to_copy.parameters()): # TODO rename linear_relu_stack to "network" or eq.
+            target_param.data.copy_(param.data * target_network_learning_rate + target_param.data * (1.0 - target_network_learning_rate))
