@@ -53,7 +53,7 @@ class TransitionBatch:
         self.size = len(experiences)
 
         # Tensor[[0], [2], [1], ...]
-        self.actions = NeuralNetwork.tensorify([[exp.transition.action] for exp in experiences])
+        self.actions = NeuralNetwork.tensorify([[exp.transition.action] for exp in experiences]) # for all of these experiences - 'Transition' object has no attribute 'transition' ??
 
         # Tensor[-0.99, -0.99, ...]
         self.rewards = NeuralNetwork.tensorify([exp.transition.reward for exp in experiences])
@@ -72,7 +72,7 @@ class TransitionBatch:
 
 
 class TransitionBuffer(Buffer):
-    def __init__(self, max_len: int = 10000, omega: float):
+    def __init__(self, max_len: int = 10000, omega: float = 0.5):
         self.buffer: Deque[Experience] = collections.deque(maxlen=max_len)
         self.omega = omega
 
