@@ -235,6 +235,7 @@ class DQN:
                 timestep = 0
 
                 for timestep in range(self.timestep_count):
+                    reward_sum += 5
                     # plt.imshow(self.environment.env.render())
                     # plt.show()
 

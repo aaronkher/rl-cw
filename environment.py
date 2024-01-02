@@ -32,7 +32,9 @@ class Transition:
 
 class Environment:
     def __init__(self):
-        self.env = gymnasium.make("highway-v0")
+        # self.env = gymnasium.make("highway-v0", render_mode='rgb_array')
+        self.env = gymnasium.make('highway-v0', render_mode='human')
+
         if self.env is None:
             raise Exception("Env error")
         if self.env.observation_space is None or self.env.observation_space.shape is None:
@@ -64,12 +66,28 @@ class Environment:
 
     def take_action(self, action: Action) -> Transition:
         old_state = self.current_state
-        new_state_ndarray, reward, terminated, truncated, _ = self.env.step(action)
+        new_state_ndarray, reward, terminated, truncated, info = self.env.step(action)
+
+
 
         device = NeuralNetwork.device()
         new_state_tensor = torch.from_numpy(new_state_ndarray).to(device)
         new_state = State(new_state_tensor, terminated)
         reward = float(reward)
+
+        # reward shaping for crash
+        if info['crashed']:  
+            reward -= 100 #  penalty for crash
+        
+        # reward for generally not crashing with action
+        if not info['crashed']:  
+            reward += 5 
+
+        # end result
+        if terminated or truncated:
+            if not info['crashed']: 
+                reward += 100  
+       
 
         self.current_state = new_state
         self.last_action_taken = Transition(

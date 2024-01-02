@@ -76,7 +76,7 @@ class NeuralNetwork(nn.Module):
         # STATE SPACE DETAILS
         self.IMAGE_ROWS = 5 # TODO: DON'T HARDCODE
         self.IMAGE_COLUMNS = 5 # TODO: DON'T HARDCODE
-        self.IMAGE_CHANNELS = 1 # 1 for greyscale # TODO: DON'T HARDCODE
+        self.IMAGE_CHANNELS = 1 # TODO: DON'T HARDCODE
 
         # CNN - for input image processing
         # https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
@@ -140,8 +140,11 @@ class NeuralNetwork(nn.Module):
     def get_q_values_batch(self, states: torch.Tensor) -> NeuralNetworkResultBatch:
         # states = Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
+        batch_size = states.shape[0]
+        states_batch = states.view(batch_size, self.IMAGE_CHANNELS, self.IMAGE_ROWS, self.IMAGE_COLUMNS)
+ 
 
-        batch_output = self(states)
+        batch_output = self(states_batch)
         # batch_output = Tensor[[QValue * 3], [QValue * 3], ...]
         # where QValue is float
 
