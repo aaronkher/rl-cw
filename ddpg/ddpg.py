@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 
 import torch
+import numpy as np
 from data_helper import LivePlot
 from ddpg.actor_network import ActorNetwork
 from ddpg.critic_network import CriticNetwork
@@ -23,11 +24,13 @@ class DDPG:
         gamma: float,
         buffer_batch_size: int,
         target_network_learning_rate: float,
+        sigma: float = 0.15,
     ):
         self.episode_count = episode_count
         self.gamma = gamma
         self.buffer_batch_size = buffer_batch_size
         self.target_network_learning_rate = target_network_learning_rate
+        self.sigma = sigma
 
         self.environment = PendulumEnv()
         self.transition_buffer = TransitionBuffer(omega=0.5)
@@ -39,13 +42,13 @@ class DDPG:
         self.target_actor_network = self.actor_network.create_copy()
 
     def get_action(self, state: State) -> Action:
-        action = self.actor_network.get_action(state)
-        self.add_ou_noise(action)
-        return action
+        perfect_action = self.actor_network.get_action(state)
+        noise = self.compute_OU_noise(0, 0.15, self.sigma)
+        return perfect_action + noise
 
-    def add_ou_noise(self, x, mu=0.0, theta=0.15, sigma=0.5):  # mu is mean, theta is friction, sigma is noise
-        dx = theta * (mu - x) + sigma * np.random.randn()
-        return x + dx
+    def compute_OU_noise(self, mu: float, theta: float, sigma: float) -> float:
+        # https://en.wikipedia.org/wiki/Ornstein%E2%80%93Uhlenbeck_process
+        return theta * (mu - sigma) + sigma * np.random.randn()
 
     def compute_td_targets(self, experiences: TransitionBatch) -> TdTargetBatch:
         # td target is:
@@ -80,8 +83,8 @@ class DDPG:
         self.target_critic_network.polyak_update(self.critic_network, self.target_network_learning_rate)
         self.target_actor_network.polyak_update(self.actor_network, self.target_network_learning_rate)
 
-    def decay_epsilon(self, episode: int):  # todo rename
-        pass
+    def decay_noise(self, episode: int):  # todo rename
+        self.sigma = max(0.01, self.sigma - 0.0001)
 
     def train(self):
         plot = LivePlot()
@@ -130,7 +133,7 @@ class DDPG:
                     f" | reward {reward_sum: <7.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards)})"
                 )
 
-                self.decay_epsilon(episode)
+                self.decay_noise(episode)
 
                 # episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 plot.add_episode(reward_sum, won, running_avg)

@@ -22,7 +22,7 @@ class ActorNetwork(NeuralNetwork):
     def get_action(self, state: State) -> Action:
         input = state.tensor
         output = self(input)
-        action = output.detach().cpu().item()
+        action = output.detach().cpu().item()  # single item tensor -> float
         return action
 
     def get_actions(self, states: torch.Tensor) -> torch.Tensor:
@@ -37,6 +37,10 @@ class ActorNetwork(NeuralNetwork):
 
         # ask the critic network to criticize these actions we chose
         q_values = self.critic_network.get_q_values(states, actions)
+
+        self.gradient_ascent(q_values)
+
+    def gradient_ascent(self, q_values: torch.Tensor):
         q_values = -q_values
 
         # take the mean

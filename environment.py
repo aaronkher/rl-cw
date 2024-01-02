@@ -6,7 +6,7 @@ import gymnasium
 from network import NeuralNetwork
 
 
-Action = int
+Action = int | float
 
 
 @dataclass
