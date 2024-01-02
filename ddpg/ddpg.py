@@ -2,10 +2,12 @@ import collections
 from dataclasses import dataclass
 
 import torch
+import numpy as np
 from data_helper import LivePlot
 from environment import Action, MountainCarContinuousEnv, State
 from replay_buffer import TransitionBatch, ReplayBuffer
-
+from actor_network import ActorNetwork
+from critic_network import CriticNetwork
 
 @dataclass
 class TdTargetBatch:
@@ -20,41 +22,76 @@ class DDPG:
         gamma: float,
         buffer_batch_size: int,
         target_network_learning_rate: float,
+        sigma: float = 0.15,
     ):
         self.episode_count = episode_count
         self.gamma = gamma
         self.buffer_batch_size = buffer_batch_size
         self.target_network_learning_rate = target_network_learning_rate
+        self.sigma = sigma
 
         self.environment = MountainCarContinuousEnv()
         self.replay_buffer = ReplayBuffer()
 
         # {} used as placeholders
-        self.actor_network = {}
-        self.target_actor_network = {}
+        self.actor_network = ActorNetwork(self.environment)
+        self.target_actor_network = self.actor_network.create_copy()
         # copy weights
 
-        self.critic_network = {}
-        self.target_critic_network = {}
+        self.critic_network = CriticNetwork(self.environment)
+        self.target_critic_network = self.critic_network.create_copy()
         # copy weights
+
+    def compute_OU_noise(self, mu: float, theta: float, sigma: float) -> float:
+        # https://en.wikipedia.org/wiki/Ornstein%E2%80%93Uhlenbeck_process
+        return theta * (mu - sigma) + sigma * np.random.randn(1)
 
     def get_action(self, state: State) -> Action:
-        raise "TODO"
+        perfect_action = self.actor_network.get_action(state)
+        noise = self.compute_OU_noise(0, 0.15, self.sigma)
+        action = perfect_action + noise
+        return action
 
     def compute_td_targets(self, experiences: TransitionBatch) -> TdTargetBatch:
-        raise "TODO"
+        # td target is:
+        # reward + discounted qvalue  (if not terminal)
+        # reward + 0                  (if terminal)
+
+        # Tensor[-0.99, -0.99, ...]
+        rewards = experiences.rewards
+
+        next_actions = self.target_actor_network.get_action_batch(experiences.new_states)
+
+        # Tensor[[QValue], [QValue], ...]
+        qvalues = self.target_critic_network.get_q_values(
+            experiences.new_states,
+            next_actions
+        )
+
+        discounted_qvalues_tensor = qvalues * self.gamma
+        discounted_qvalues_tensor[experiences.terminal] = 0
+
+        # # reformat rewards tensor to same shape as discounted_qvalues_tensor
+        # # Tensor[[-0.99], [-0.99], ...]
+        rewards = rewards.unsqueeze(1)
+
+        # Tensor[[TDTarget], [TDTarget], ...]
+        td_targets = rewards + discounted_qvalues_tensor
+
+        return TdTargetBatch(td_targets)
 
     def train_critic_network(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
-        raise "TODO"
+        self.critic_network.train(experiences, td_targets)
 
     def train_actor_network(self, experiences: TransitionBatch):
-        raise "TODO"
+        self.actor_network.train(experiences, self.critic_network)
 
     def update_target_networks(self):
-        raise "TODO"
+        self.target_actor_network.update_weights(self.actor_network, self.target_network_learning_rate)
+        self.target_critic_network.update_weights(self.critic_network, self.target_network_learning_rate)
 
-    def decay_epsilon(self, episode: int):  # todo rename
-        raise "TODO"
+    def decay_noise(self, episode: int):  # todo rename
+        self.sigma = max(0.01, self.sigma - 0.0001)
 
     def train(self):
         plot = LivePlot()
