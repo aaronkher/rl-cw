@@ -80,3 +80,13 @@ class NeuralNetwork(nn.Module):
         nn.utils.clip_grad.clip_grad_value_(self.parameters(), 100.0)
 
         self.optim.step()  # gradient descent
+
+    def polyak_update(self, main: "NeuralNetwork", update_rate: float):
+        main_net_state = main.state_dict()
+        target_net_state = self.state_dict()
+        β = update_rate  # shorten name
+
+        for key in main_net_state:
+            target_net_state[key] = β * main_net_state[key] + (1 - β) * target_net_state[key]
+
+        self.load_state_dict(target_net_state)

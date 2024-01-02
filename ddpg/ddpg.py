@@ -1,10 +1,13 @@
 import collections
 from dataclasses import dataclass
+import numpy as np
 
 import torch
 from data_helper import LivePlot
-from environment import Action, MountainCarContinuousEnv, State
-from replay_buffer import TransitionBatch, ReplayBuffer
+from ddpg.actor_network import ActorNetwork
+from ddpg.critic_network import CriticNetwork
+from environment import Action, PendulumEnv, State
+from replay_buffer import TransitionBatch, TransitionBuffer
 
 
 @dataclass
@@ -26,35 +29,59 @@ class DDPG:
         self.buffer_batch_size = buffer_batch_size
         self.target_network_learning_rate = target_network_learning_rate
 
-        self.environment = MountainCarContinuousEnv()
-        self.replay_buffer = ReplayBuffer()
+        self.environment = PendulumEnv()
+        self.transition_buffer = TransitionBuffer(omega=0.5)
 
-        # {} used as placeholders
-        self.actor_network = {}
-        self.target_actor_network = {}
-        # copy weights
+        self.critic_network = CriticNetwork(self.environment)
+        self.target_critic_network = self.critic_network.create_copy()
 
-        self.critic_network = {}
-        self.target_critic_network = {}
-        # copy weights
+        self.actor_network = ActorNetwork(self.environment, self.critic_network)
+        self.target_actor_network = self.actor_network.create_copy()
 
     def get_action(self, state: State) -> Action:
-        raise "TODO"
+        action = self.actor_network.get_action(state)
+        self.add_ou_noise(action)
+        return action
+
+    def add_ou_noise(self, x, mu=0.0, theta=0.15, sigma=0.5):  # mu is mean, theta is friction, sigma is noise
+        dx = theta * (mu - x) + sigma * np.random.randn()
+        return x + dx
 
     def compute_td_targets(self, experiences: TransitionBatch) -> TdTargetBatch:
-        raise "TODO"
+        # td target is:
+        # reward + discounted qvalue  (if not terminal)
+        # reward + 0                  (if terminal)
+
+        new_states = experiences.new_states
+
+        # ask the actor network what actions it would choose
+        actions = self.actor_network.get_actions(new_states)
+
+        # ask the critic network to criticize these actions
+        # Tensor[[QValue * 3], [QValue * 3], ...]
+        discounted_qvalues = self.critic_network.get_q_values(new_states, actions)
+        discounted_qvalues[experiences.terminal] = 0
+        discounted_qvalues *= self.gamma
+
+        # Tensor[[Reward], [Reward], ...]
+        rewards = experiences.rewards.unsqueeze(1)
+
+        # Tensor[TDTarget, TDTarget, ...]
+        td_targets = rewards + discounted_qvalues
+        return TdTargetBatch(td_targets)
 
     def train_critic_network(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
-        raise "TODO"
+        self.critic_network.train(experiences, td_targets)
 
     def train_actor_network(self, experiences: TransitionBatch):
-        raise "TODO"
+        self.actor_network.train(experiences)
 
     def update_target_networks(self):
-        raise "TODO"
+        self.target_critic_network.polyak_update(self.critic_network, self.target_network_learning_rate)
+        self.target_actor_network.polyak_update(self.actor_network, self.target_network_learning_rate)
 
     def decay_epsilon(self, episode: int):  # todo rename
-        raise "TODO"
+        pass
 
     def train(self):
         plot = LivePlot()
@@ -75,10 +102,10 @@ class DDPG:
 
                     transition = self.environment.take_action(action)
                     reward_sum += transition.reward
-                    self.replay_buffer.add_experience(transition)
+                    self.transition_buffer.add(transition)
 
-                    if self.replay_buffer.size() > self.buffer_batch_size:
-                        replay_batch = self.replay_buffer.get_batch(self.buffer_batch_size)
+                    if self.transition_buffer.size() > self.buffer_batch_size:
+                        replay_batch = self.transition_buffer.get_batch(self.buffer_batch_size)
                         td_targets = self.compute_td_targets(replay_batch)
 
                         self.train_critic_network(replay_batch, td_targets)
@@ -100,7 +127,7 @@ class DDPG:
                 running_avg = sum(recent_rewards) / len(recent_rewards)
                 print(
                     f"Episode {episode+1: <3} | {timestep+1: >3} timesteps {won_str}"
-                    f" | reward {reward_sum: <6.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards): <2})"
+                    f" | reward {reward_sum: <7.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards)})"
                 )
 
                 self.decay_epsilon(episode)

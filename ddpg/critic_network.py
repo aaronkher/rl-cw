@@ -1,8 +1,15 @@
+from typing import TYPE_CHECKING
+
 import torch
-from ddpg.ddpg import TdTargetBatch
 from dqn.dqn_network import DqnNetwork, DqnNetworkResultBatch
 from environment import Action, Environment, State
 from replay_buffer import TransitionBatch
+
+# prevent circular import
+if TYPE_CHECKING:
+    from ddpg.ddpg import TdTargetBatch
+else:
+    TdTargetBatch = object
 
 
 class CriticNetworkResults:
@@ -16,6 +23,8 @@ class CriticNetwork(DqnNetwork):
         inputs = env.action_count + env.observation_space_length
         outputs = env.action_count
         super(DqnNetwork, self).__init__(inputs, outputs)
+
+        self.environment = env
 
     def create_copy(self) -> "CriticNetwork":
         copy = CriticNetwork(self.environment)
@@ -43,7 +52,7 @@ class CriticNetwork(DqnNetwork):
 
         # Tensor[Action, Action, ...]
         # where Action is int
-        experience_actions = experiences.actions
+        experience_actions = experiences.actions.squeeze(1)
 
         # Tensor[[QValue], [QValue], ...]
         # where QValue is float
@@ -51,7 +60,7 @@ class CriticNetwork(DqnNetwork):
 
         # Tensor[[TDTarget], [TDTarget], ...]
         # where TDTarget is QValue
-        td_targets_tensor = td_targets.tensor.unsqueeze(1)
+        td_targets_tensor = td_targets.tensor
         # y = actual (target network)
 
         self.gradient_descent(q_values, td_targets_tensor)

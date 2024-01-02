@@ -72,12 +72,16 @@ class TransitionBatch:
 
 
 class TransitionBuffer(Buffer):
-    def __init__(self, max_len: int = 10000, omega: float):
+    def __init__(self, max_len: int = 10000, omega: float = 0.5):
         self.buffer: Deque[Experience] = collections.deque(maxlen=max_len)
         self.omega = omega
 
     def get_buffer(self) -> Deque[Experience]:
         return self.buffer
+
+    def add(self, transition: Transition):
+        experience = Experience(transition, 9.0)
+        self.buffer.append(experience)
 
     def get_priorities(self) -> ndarray | None:
         priorities = np.array([exp.td_error for exp in self.buffer])

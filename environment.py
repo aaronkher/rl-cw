@@ -41,7 +41,7 @@ class Environment:
         self.last_action_taken: Transition | None
 
     def won(self, transition: Transition) -> bool:
-        raise NotImplementedError # needs to be subclassed
+        raise NotImplementedError  # needs to be subclassed
 
     @property
     def action_list(self) -> list[Action]:
@@ -94,18 +94,28 @@ class Environment:
         assert self.last_action_taken is not None
         return self.last_action_taken.reward
 
+
 class CartpoleEnv(Environment):
     def __init__(self, render: bool = False):
         super().__init__("CartPole-v1", render)
 
     def won(self, transition: Transition) -> bool:
-        # truncated means we survived long enough
-        return transition.truncated
+        # truncated means we didn't survive till the end
+        return not transition.truncated
 
-class MountainCarContinuousEnv(Environment):
+
+class PendulumEnv(Environment):
     def __init__(self, render: bool = False):
-        super().__init__("MountainCarContinuous-v0", render)
+        super().__init__("Pendulum-v1", render)
 
     def won(self, transition: Transition) -> bool:
-        # truncated means we didn't reach the end
-        return not transition.truncated
+        # there is no winning in this one
+        return True 
+
+    @property
+    def action_count(self) -> int:
+        # todo do not hardcode
+        return 1
+
+    def take_action(self, action: Action):
+        return super().take_action([action])  # type: ignore
