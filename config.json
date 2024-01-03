@@ -13,5 +13,6 @@
         "benchmark": false,
         "wait_on_done": true
       }
-    }
+    },
+    "VIRTUAL_GAMEPAD": false
   }

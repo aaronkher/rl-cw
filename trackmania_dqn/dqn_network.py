@@ -11,7 +11,7 @@ from network import NeuralNetwork
 # prevent circular import
 if TYPE_CHECKING:
     from environment import State, Environment, Action
-    from dqn.dqn import TransitionBatch, TdTargetBatch
+    from trackmania_dqn.dqn import TransitionBatch, TdTargetBatch
 else:
     Experience = object
     State = object
@@ -29,13 +29,6 @@ class DqnNetworkResult:
         argmax: torch.Tensor = self.tensor.argmax()  # this is a tensor with one item
         best_action = argmax.item()
         return cast(Action, best_action)
-
-    def best_action_q_value(self) -> float:
-        return self.tensor[self.best_action()].item()
-
-    def q_value_for_action(self, action: Action) -> float:
-        return self.tensor[action].item()
-
 
 class DqnNetworkResultBatch:
     def __init__(self, tensor: torch.Tensor):
@@ -67,12 +60,12 @@ class TrackManiaDqnNetwork(NeuralNetwork):
         self.action_space = action_space
 
         inputs = observation_space.shape[0]
-        outputs = action_space.n
+        outputs = action_space.shape[0]
 
         super(TrackManiaDqnNetwork, self).__init__(inputs, outputs)
 
     def create_copy(self) -> "TrackManiaDqnNetwork":
-        copy = TrackManiaDqnNetwork(self.environment)
+        copy = TrackManiaDqnNetwork(self.observation_space, self.action_space)
         copy.copy_from(self)
         return copy
 
@@ -115,18 +108,10 @@ class TrackManiaDqnNetwork(NeuralNetwork):
         neural_network_result = self.get_q_values(state)
         return neural_network_result.best_action()
 
-    def train(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
-        # Tensor[State, State, ...]
-        # where State is Tensor[position, velocity]
-        experience_states = experiences.old_states
-
+    def train(self, prev_states, actions_chosen, td_targets: TdTargetBatch):
         # Tensor[[QValue * 3], [QValue * 3], ...]
         # where QValue is float
-        q_values = self(experience_states)
-
-        # Tensor[[Action], [Action], ...]
-        # where Action is int
-        actions_chosen = experiences.actions
+        q_values = self(prev_states)
 
         # Tensor[[QValue], [QValue], ...]
         actions_chosen_q_values = q_values.gather(1, actions_chosen)

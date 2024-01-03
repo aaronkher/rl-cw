@@ -181,9 +181,9 @@ from tmrl.actor import TorchActorModule
 
 # Plus a couple useful imports:
 import torch
-import trackmania_dqn.dqn as TrackManiaDQN
 import torch.nn as nn
 import torch.nn.functional as F
+from trackmania_dqn.dqn import TrackManiaDQN
 from torch.distributions.normal import Normal
 from math import floor
 
@@ -244,7 +244,7 @@ class MyActorModule(TorchActorModule):
         """
         # We must call the superclass __init__:
         super().__init__(observation_space, action_space)
-        TrackManiaDQN(
+        self.DQN = TrackManiaDQN(
             observation_space, 
             action_space,
             gamma=0.99,
@@ -312,6 +312,9 @@ class MyActorModule(TorchActorModule):
         """
         # obs is our input observation.
         # We feed it to our actor neural network, which will output an action.
+        best_action = self.DQN.get_best_action(obs)
+        return best_action
+
 
 
 
@@ -338,6 +341,11 @@ class MyActorModule(TorchActorModule):
         # Also note that, when using TorchActorModule, TMRL calls act() in a torch.no_grad() context.
         # Thus, you don't need to use "with torch.no_grad()" here.
         # But let us do it anyway to be extra sure, for the people using ActorModule instead of TorchActorModule.
+        self.forward(obs)
+
+        # TODO CONVERT TO NUMPY ARRAY IN FORM OF ACTION - still not 100% sure what this should be for discrete
+
+        # Need to set "VIRTUAL_GAMEPAD": false in config.json in order to use 4 discrete keyboard inputs
         
 
 from tmrl.training import TrainingAgent
@@ -369,13 +377,15 @@ class DQNTrainingAgent(TrainingAgent):
                  observation_space=None,  # Gymnasium observation space (required argument here for your convenience)
                  action_space=None,  # Gymnasium action space (required argument here for your convenience)
                  device=None,  # Device our TrainingAgent should use for training (required argument)
-                 model_cls=VanillaCNNActorCritic,  # An actor-critic module, encapsulating our ActorModule
+                 model_cls=TrackManiaDQN,  # An actor-critic module, encapsulating our ActorModule
                  ):
 
         # required arguments passed to the superclass:
         super().__init__(observation_space=observation_space,
                          action_space=action_space,
                          device=device)
+        
+        self.model_cls = model_cls
 
     def get_actor(self):
         """
@@ -412,5 +422,4 @@ class DQNTrainingAgent(TrainingAgent):
         Returns:
             logs: Dictionary: a python dictionary of training metrics you wish to log on wandb
         """
-        # First, we decompose our batch into its relevant components, ignoring the "truncated" signal:
-        o, a, r, o2, d, _ = batch
+        self.model_cls.train(batch)
