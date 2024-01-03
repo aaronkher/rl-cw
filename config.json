@@ -1,0 +1,17 @@
+{
+    "ENV": {
+      "RTGYM_INTERFACE": "TM20LIDAR",
+      "WINDOW_WIDTH": 958,
+      "WINDOW_HEIGHT": 488,
+      "SLEEP_TIME_AT_RESET": 1.5,
+      "IMG_HIST_LEN": 4,
+      "RTGYM_CONFIG": {
+        "time_step_duration": 0.05,
+        "start_obs_capture": 0.04,
+        "time_step_timeout_factor": 1.0,
+        "act_buf_len": 2,
+        "benchmark": false,
+        "wait_on_done": true
+      }
+    }
+  }
