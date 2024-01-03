@@ -32,8 +32,8 @@ class Transition:
 
 class Environment:
     def __init__(self):
-        # self.env = gymnasium.make("highway-v0", render_mode='rgb_array')
-        self.env = gymnasium.make('highway-v0', render_mode='human')
+        self.env = gymnasium.make("highway-v0", render_mode='rgb_array')
+        # self.env = gymnasium.make('highway-v0', render_mode='human')
 
         if self.env is None:
             raise Exception("Env error")
@@ -77,16 +77,16 @@ class Environment:
 
         # reward shaping for crash
         if info['crashed']:  
-            reward -= 100 #  penalty for crash
+            reward -= 200 #  penalty for crash
         
-        # reward for generally not crashing with action
-        if not info['crashed']:  
-            reward += 5 
+        # # reward for generally not crashing with action
+        # if not info['crashed']:  
+        #     reward += 5 
 
         # end result
         if terminated or truncated:
             if not info['crashed']: 
-                reward += 100  
+                reward += 200  
        
 
         self.current_state = new_state
