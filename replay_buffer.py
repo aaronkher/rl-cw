@@ -9,35 +9,6 @@ from environment import Transition
 from network import NeuralNetwork
 
 
-# === PARENT CLASS ===
-
-T = typing.TypeVar("T")
-
-
-class Buffer:
-    def get_buffer(self) -> Deque[T]:
-        raise NotImplementedError
-
-    def get_priorities(self) -> np.ndarray | None:
-        return None
-
-    def add(self, item: T):
-        self.get_buffer().append(item)
-
-    def get_batch(self, batch_size: int) -> list[T]:
-        buffer = self.get_buffer()
-        priorities = self.get_priorities()
-
-        indices = np.random.choice(len(buffer), batch_size, p=priorities)
-        experiences = [buffer[idx] for idx in indices]
-
-        return experiences
-
-    def size(self):
-        buffer = self.get_buffer()
-        return len(buffer)
-
-
 # === TRANSITION/TIMESTEP BATCH ===
 
 
@@ -71,46 +42,39 @@ class TransitionBatch:
             exp.td_error = td_error
 
 
-class TransitionBuffer(Buffer):
+class TransitionBuffer:
     def __init__(self, max_len: int = 10000, omega: float = 0.5):
         self.buffer: Deque[Experience] = collections.deque(maxlen=max_len)
+        self.new_transitions: list[Transition] = []
         self.omega = omega
 
     def get_buffer(self) -> Deque[Experience]:
         return self.buffer
 
     def add(self, transition: Transition):
-        experience = Experience(transition, 9.0)
-        self.buffer.append(experience)
-
+        self.new_transitions.append(transition)
+    
     def get_priorities(self) -> ndarray | None:
         priorities = np.array([exp.td_error for exp in self.buffer])
         priorities /= priorities.sum()
         return priorities
 
     def get_batch(self, batch_size: int) -> TransitionBatch:
-        batch = super().get_batch(batch_size)
-        return TransitionBatch(batch)
+        batch_size -= len(self.new_transitions)
+        buffer = self.get_buffer()
+        priorities = self.get_priorities()
+        
+        indices = np.random.choice(len(buffer), batch_size, p=priorities)
+        experiences = [buffer[idx] for idx in indices]
 
+        new_transitions = self.new_transitions[:batch_size]
+        new_experiences = [Experience(transition, -1) for transition in new_transitions]
+        del self.new_transitions[:batch_size]
 
-# === TRAJECTORY/EPISODE BUFFER ===
+        experiences.extend(new_experiences)
 
-
-Trajectory = TransitionBuffer
-
-
-@dataclass
-class TrajectoryBatch:
-    trajectories: list[Trajectory]
-
-
-class TrajectoryBuffer(Buffer):
-    def __init__(self, max_len: int):
-        self.buffer: Deque[Trajectory] = collections.deque(maxlen=max_len)
-
-    def get_buffer(self) -> Deque[Trajectory]:
-        return self.buffer
-
-    def get_batch(self, batch_size: int) -> TrajectoryBatch:
-        batch = super().get_batch(batch_size)
-        return TrajectoryBatch(batch)
+        return TransitionBatch(experiences)
+    
+    def size(self):
+        buffer = self.get_buffer()
+        return len(buffer)
