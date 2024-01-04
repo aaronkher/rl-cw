@@ -59,6 +59,7 @@ class TrackmaniaEnv(DiscreteActionEnv):
 
         new_state = self.tensorify_state(new_state_ndarray, terminated)
         reward = float(_reward)
+        reward -= 0.2 # adding penalty for each timestep
 
         self._current_state = new_state
         self.last_action_taken = Transition(
