@@ -1,6 +1,6 @@
 import torch
 from ddpg.critic_network import CriticNetwork
-from environment import Action, Environment, State
+from environment.environment import Action, Environment, State
 from network import NeuralNetwork
 from replay_buffer import TransitionBatch
 

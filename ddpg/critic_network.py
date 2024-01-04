@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 import torch
 from dqn.dqn_network import DqnNetwork, DqnNetworkResultBatch
-from environment import Action, Environment, State
+from environment.environment import Action, Environment, State
 from replay_buffer import TransitionBatch
 from network import NeuralNetwork
 
