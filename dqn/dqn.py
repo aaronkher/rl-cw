@@ -1,7 +1,8 @@
 import random
 from dataclasses import dataclass
-import math
 import collections
+from datetime import datetime
+import math
 from typing import Iterable, Deque
 
 import torch
@@ -31,6 +32,7 @@ class DQN:
         epsilon_min: float = 0.01,
         epsilon_decay: float = 0.05,
         buffer_batch_size: int = 100,
+        checkpoint_id: str | None = None,
     ):
         self.episode_count = episode_count
         self.timestep_count = timestep_count
@@ -48,6 +50,10 @@ class DQN:
         self.transition_buffer = TransitionBuffer(omega=0.5)
         self.policy_network = DqnNetwork(self.environment)  # q1 / θ
         self.target_network = self.policy_network.create_copy()  # q2 / θ-
+
+        if checkpoint_id is not None:
+            self.policy_network.load_checkpoint(checkpoint_id)
+            self.target_network.load_checkpoint(checkpoint_id)
 
     def get_best_action(self, state: State) -> Action:
         return self.policy_network.get_best_action(state)
@@ -148,6 +154,11 @@ class DQN:
         plot = LivePlot()
         plot.create_figure()
 
+        high_score = 0.0
+        high_score_episode = 0
+
+        start = datetime.now()
+
         try:
             timestep_C_count = 0
             recent_rewards = collections.deque(maxlen=30)
@@ -196,6 +207,28 @@ class DQN:
                     f" | reward {reward_sum: <6.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards): <2})"
                     f" | ε {self.epsilon:.2f}"
                 )
+
+                now = datetime.now()
+                running_for = now - start
+
+                suffix = None
+                if episode % 100 == 0:
+                    suffix = f" (ep {episode})"
+                if reward_sum > high_score and episode > high_score_episode + 15:
+                    high_score = reward_sum
+                    high_score_episode = episode
+                    suffix = f" (hs {high_score:.1f})"
+
+                if suffix is not None:
+                    self.policy_network.save_checkpoint(
+                        episode_number=episode,
+                        reward=reward_sum,
+                        won=won,
+                        epsilon=self.epsilon,
+                        running_since=start,
+                        running_for=running_for,
+                        suffix=suffix,
+                    )
 
                 self.decay_epsilon(episode)
 
