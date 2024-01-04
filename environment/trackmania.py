@@ -1,33 +1,91 @@
+import math
+from typing import Iterable
+
+import torch
+import numpy as np
 import tmrl
 
-from environment.environment import Action, ContinuousActionEnv, Environment, Transition
+from network import NeuralNetwork
+from environment.environment import Action, DiscreteAction, DiscreteActionEnv, State, Transition
 
 
-class TrackmaniaEnv(ContinuousActionEnv):
+class TrackmaniaEnv(DiscreteActionEnv):
     def __init__(self):
         self.env = tmrl.get_environment()
+
+        self.reset()
+        self._current_state: State
+        self.last_action_taken: Transition | None
 
     def won(self, transition: Transition) -> bool:
         return True  # todo
 
-    @property
-    def action_count(self) -> int:
-        raise NotImplementedError
+    def action_list(self) -> list[Action]:
+        return [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
     @property
     def observation_space_length(self) -> int:
-        raise NotImplementedError
+        inputs = 0
+        for input in self.env.observation_space:
+            inputs += math.prod(input.shape)
+        return inputs
+
+    def tensorify_state(self, state: Iterable[np.ndarray], terminated: bool) -> State:
+        state_cat = np.concatenate([input.flatten() for input in state], dtype=np.float32)
+
+        device = NeuralNetwork.device()
+        state_tensor = torch.from_numpy(state_cat).to(device)
+        return State(state_tensor, terminated)
+
+    def format_action(self, nn_action: Action) -> np.ndarray:
+        assert isinstance(nn_action, DiscreteAction)
+
+        # 0-2: gas 3-5: nothing 6-8: brake
+        # 0/3/6: left 1/4/7: straight 2/5/8: right
+
+        accel = nn_action // 3
+        direction = nn_action % 3
+
+        gas = 1 if accel == 0 else 0
+        brake = 1 if accel == 2 else 0
+        steer = direction - 1  # -1 is left, 0 is straight, 1 is right
+
+        return np.array([gas, brake, steer])
 
     def take_action(self, action: Action) -> Transition:
-        raise NotImplementedError
+        old_state = self.current_state
+        formatted_action = self.format_action(action)
+        (new_state_ndarray, _reward, terminated, truncated, _) = self.env.step(formatted_action)
+
+        new_state = self.tensorify_state(new_state_ndarray, terminated)
+        reward = float(_reward)
+
+        self._current_state = new_state
+        self.last_action_taken = Transition(
+            action,
+            old_state,
+            new_state,
+            reward,
+            truncated,
+        )
+        return self.last_action_taken
 
     def reset(self):
-        raise NotImplementedError
+        (current_state, _) = self.env.reset()
+        current_state = self.tensorify_state(current_state, False)
+
+        self._current_state = current_state
+        self.last_action_taken = None
+
+    @property
+    def current_state(self) -> State:
+        return self._current_state
 
     @property
     def needs_reset(self) -> bool:
-        raise NotImplementedError
+        return self.last_action_taken is None or self.last_action_taken.end_of_episode()
 
     @property
     def last_reward(self) -> float:
-        raise NotImplementedError
+        assert self.last_action_taken is not None
+        return self.last_action_taken.reward

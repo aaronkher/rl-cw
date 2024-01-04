@@ -82,7 +82,7 @@ class TransitionBuffer(Buffer):
     def add(self, transition: Transition):
         experience = Experience(transition, 9.0)
         self.buffer.append(experience)
-
+    
     def get_priorities(self) -> ndarray | None:
         priorities = np.array([exp.td_error for exp in self.buffer])
         priorities /= priorities.sum()

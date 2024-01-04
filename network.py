@@ -33,11 +33,13 @@ class NeuralNetwork(nn.Module):
         """Create a PyTorch tensor, and make sure it's on the GPU if possible"""
         return torch.tensor(array, device=NeuralNetwork.device())
 
-    def __init__(self, inputs: int, outputs: int, neurons: int = 128):
+    def __init__(self, inputs: int, outputs: int, neurons: int = 256):
         super(NeuralNetwork, self).__init__()
 
         self.linear_relu_stack = nn.Sequential(
             nn.Linear(inputs, neurons),
+            nn.ReLU(),
+            nn.Linear(neurons, neurons),
             nn.ReLU(),
             nn.Linear(neurons, neurons),
             nn.ReLU(),

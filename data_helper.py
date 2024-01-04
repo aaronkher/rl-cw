@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import matplotlib
 import matplotlib.pyplot as plt
 
 from environment.environment import Transition
@@ -29,6 +30,9 @@ class LivePlot:
         self.lost_episode_rewards: list[float] = []
 
     def create_figure(self):
+        # https://stackoverflow.com/a/45734500
+        matplotlib.use("Qt5agg")
+        
         plt.ion()
 
         self.figure = plt.figure()
@@ -36,6 +40,7 @@ class LivePlot:
         plt.title("Total reward per episode")
         plt.xlabel("Episode")
         plt.ylabel("Total reward")
+
 
     def add_episode(self, reward: float, won: bool, running_avg: float):
         episode_number = len(self.rewards)

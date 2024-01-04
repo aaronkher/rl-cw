@@ -1,8 +1,8 @@
+import random
 from dataclasses import dataclass
 from abc import ABC, abstractmethod, abstractproperty
 
 import torch
-import gymnasium
 
 from network import NeuralNetwork
 
@@ -75,8 +75,12 @@ class DiscreteActionEnv(Environment):
     def action_list(self) -> list[Action]:
         ...
 
+    @property
     def action_count(self) -> int:
         return len(self.action_list())
+
+    def random_action(self) -> Action:
+        return random.choice(self.action_list())
 
 
 class ContinuousActionEnv(Environment):
