@@ -10,8 +10,8 @@ if __name__ == "__main__":
         timestep_count=10*1000,
         gamma=0.99,
         epsilon_start=0.9,
-        epsilon_min=0.10,
-        epsilon_decay=0.001,
+        epsilon_min=0.01,
+        epsilon_decay=0.01,
         buffer_batch_size=256,
     )
     dqn.train()
