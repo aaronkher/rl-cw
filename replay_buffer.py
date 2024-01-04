@@ -42,14 +42,14 @@ class TransitionBatch:
 class TransitionBuffer:
     def __init__(self, max_len: int = 10000, omega: float = 0.5):
         self.buffer: Deque[Experience] = collections.deque(maxlen=max_len)
+        self.new_transitions: list[Transition] = []
         self.omega = omega
 
     def get_buffer(self) -> Deque[Experience]:
         return self.buffer
 
     def add(self, transition: Transition):
-        experience = Experience(transition, 9.0)
-        self.buffer.append(experience)
+        self.new_transitions.append(transition)
     
     def get_priorities(self) -> ndarray | None:
         priorities = np.array([exp.td_error for exp in self.buffer])
@@ -57,11 +57,18 @@ class TransitionBuffer:
         return priorities
 
     def get_batch(self, batch_size: int) -> TransitionBatch:
+        batch_size -= len(self.new_transitions)
         buffer = self.get_buffer()
         priorities = self.get_priorities()
 
         indices = np.random.choice(len(buffer), batch_size, p=priorities)
         experiences = [buffer[idx] for idx in indices]
+
+        new_transitions = self.new_transitions[:batch_size]
+        new_experiences = [Experience(transition, -1) for transition in new_transitions]
+        del self.new_transitions[:batch_size]
+
+        experiences.extend(new_experiences)
 
         return TransitionBatch(experiences)
     
