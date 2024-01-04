@@ -10,7 +10,7 @@ from network import NeuralNetwork
 
 # prevent circular import
 if TYPE_CHECKING:
-    from environment import State, Environment, Action
+    from environment.environment import State, Environment, Action
     from dqn.dqn import TransitionBatch, TdTargetBatch
 else:
     Experience = object

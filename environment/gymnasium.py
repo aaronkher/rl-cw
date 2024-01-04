@@ -1,36 +1,10 @@
-from dataclasses import dataclass
-
-import torch
 import gymnasium
-
+import torch
+from environment.environment import Action, Environment, State, Transition
 from network import NeuralNetwork
 
 
-Action = int | float
-
-
-@dataclass
-class State:
-    tensor: torch.Tensor  # 1D array
-    terminal: bool
-
-
-@dataclass
-class Transition:
-    """The result of taking A_t in S_t, obtaining R_t and transitionning
-    to S_t+1."""
-
-    action: Action  # A_t
-    old_state: State  # S_t
-    new_state: State  # S_t+1
-    reward: float  # R_t
-    truncated: bool  # out of timesteps
-
-    def end_of_episode(self) -> bool:
-        return self.new_state.terminal or self.truncated
-
-
-class Environment:
+class GymnasiumEnv(Environment):
     def __init__(self, env_name: str, render: bool = False):
         # self.env = gymnasium.make("CartPole-v1")
         render_mode = "human" if render else None
@@ -95,7 +69,7 @@ class Environment:
         return self.last_action_taken.reward
 
 
-class CartpoleEnv(Environment):
+class CartpoleEnv(GymnasiumEnv):
     def __init__(self, render: bool = False):
         super().__init__("CartPole-v1", render)
 
@@ -104,13 +78,13 @@ class CartpoleEnv(Environment):
         return not transition.truncated
 
 
-class PendulumEnv(Environment):
+class PendulumEnv(GymnasiumEnv):
     def __init__(self, render: bool = False):
         super().__init__("Pendulum-v1", render)
 
     def won(self, transition: Transition) -> bool:
         # there is no winning in this one
-        return True 
+        return True
 
     @property
     def action_count(self) -> int:

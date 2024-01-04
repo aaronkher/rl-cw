@@ -5,7 +5,7 @@ import typing
 import numpy as np
 from numpy import ndarray
 import torch
-from environment import Transition
+from environment.environment import Transition
 from network import NeuralNetwork
 
 
