@@ -24,7 +24,7 @@ class TransitionBatch:
         self.size = len(experiences)
 
         # Tensor[[0], [2], [1], ...]
-        self.actions = NeuralNetwork.tensorify([exp.transition.action.tensor() for exp in experiences])
+        self.actions = NeuralNetwork.tensorify([[exp.transition.action.tensor()] for exp in experiences])
 
         # Tensor[-0.99, -0.99, ...]
         self.rewards = NeuralNetwork.tensorify([exp.transition.reward for exp in experiences])
@@ -48,9 +48,6 @@ class TransitionBuffer:
         self.new_transitions: list[Transition] = []
         self.omega = omega
 
-    def get_buffer(self) -> Deque[Experience]:
-        return self.buffer
-
     def add(self, transition: Transition):
         self.new_transitions.append(transition)
     
@@ -60,21 +57,28 @@ class TransitionBuffer:
         return priorities
 
     def get_batch(self, batch_size: int) -> TransitionBatch:
-        batch_size -= len(self.new_transitions)
-        buffer = self.get_buffer()
-        priorities = self.get_priorities()
-        
-        indices = np.random.choice(len(buffer), batch_size, p=priorities)
-        experiences = [buffer[idx] for idx in indices]
+        experiences = []
 
-        new_transitions = self.new_transitions[:batch_size]
-        new_experiences = [Experience(transition, -1) for transition in new_transitions]
-        del self.new_transitions[:batch_size]
+        # if there are new transitions, add them
+        new_experiences = None
+        if len(self.new_transitions) > 0:
+            new_transitions = self.new_transitions[:batch_size]
+            del self.new_transitions[:batch_size]
 
-        experiences.extend(new_experiences)
+            new_experiences = [Experience(transition, -1.0) for transition in new_transitions]
+            experiences.extend(new_experiences)
+            batch_size -= len(new_experiences)
+
+        if batch_size > 0:
+            priorities = self.get_priorities()
+            indices = np.random.choice(len(self.buffer), batch_size, p=priorities)
+            experiences += [self.buffer[idx] for idx in indices]
+
+        # now that we have picked from self.buffer, add the new experiences
+        if new_experiences is not None:
+            self.buffer.extend(new_experiences)
 
         return TransitionBatch(experiences)
     
     def size(self):
-        buffer = self.get_buffer()
-        return len(buffer)
+        return len(self.buffer) + len(self.new_transitions)

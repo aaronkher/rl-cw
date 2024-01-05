@@ -5,6 +5,7 @@ from environment.environment import (
     Action,
     ContinuousAction,
     ContinuousActionEnv,
+    DiscreteAction,
     DiscreteActionEnv,
     Environment,
     State,
@@ -25,16 +26,6 @@ class GymnasiumEnv(Environment):
     @abstractmethod
     def won(self, transition: Transition) -> bool:
         ...
-
-    @property
-    def action_list(self) -> list[Action]:
-        # [0, 1] for cartpole
-        return list(range(self.env.action_space.start, self.env.action_space.n))  # type: ignore
-
-    @property
-    def action_count(self) -> int:
-        # 2 for cartpole
-        return len(self.action_list)
 
     @property
     def observation_space_length(self) -> int:
@@ -82,7 +73,20 @@ class GymnasiumEnv(Environment):
         return self.last_action_taken.reward
 
 
-class CartpoleEnv(GymnasiumEnv, DiscreteActionEnv):
+class DiscreteGymnasiumEnv(GymnasiumEnv, DiscreteActionEnv):
+    @property
+    def action_list(self) -> list[DiscreteAction]:
+        # [0, 1] for cartpole
+        actions = range(self.env.action_space.start, self.env.action_space.n)  # type: ignore
+        return [DiscreteAction(action) for action in actions]
+
+    @property
+    def action_count(self) -> int:
+        # 2 for cartpole
+        return len(self.action_list)
+
+
+class CartpoleEnv(DiscreteGymnasiumEnv):
     def __init__(self, render: bool = False):
         super().__init__("CartPole-v1", render)
 

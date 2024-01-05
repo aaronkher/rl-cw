@@ -36,16 +36,12 @@ class NeuralNetwork(nn.Module):
             assert not isinstance(array[0], np.ndarray)
         return torch.tensor(array, device=NeuralNetwork.device())
 
-    def __init__(self, inputs: int, outputs: int, neurons: int = 128):
+    def __init__(self, inputs: int, outputs: int):
         super(NeuralNetwork, self).__init__()
 
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(inputs, neurons),
-            nn.ReLU(),
-            nn.Linear(neurons, neurons),
-            nn.ReLU(),
-            nn.Linear(neurons, outputs),
-        )
+        self.inputs = inputs
+        self.outputs = outputs
+        self.stack = self.create_stack()
 
         self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
 
@@ -57,6 +53,17 @@ class NeuralNetwork(nn.Module):
 
     def copy_from(self, other: "NeuralNetwork"):
         self.load_state_dict(other.state_dict())
+
+    def create_stack(self):
+        # default stack, subclasses can override this
+        neurons = 128
+        return nn.Sequential(
+            nn.Linear(self.inputs, neurons),
+            nn.ReLU(),
+            nn.Linear(neurons, neurons),
+            nn.ReLU(),
+            nn.Linear(neurons, self.outputs),
+        )
 
     # do not call directly, call get_q_values() instead
     def forward(self, state: torch.Tensor) -> torch.Tensor:
@@ -70,7 +77,7 @@ class NeuralNetwork(nn.Module):
             torch.Tensor: a tensor of length 3 (one q-value for each action)
         """
 
-        return self.linear_relu_stack(state)
+        return self.stack(state)
 
     def gradient_descent(self, expected: torch.Tensor, actual: torch.Tensor):
         criterion = torch.nn.HuberLoss()

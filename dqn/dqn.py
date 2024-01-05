@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from dqn.dqn_network import DqnNetwork, DqnNetworkResult
 
-from environment.environment import DiscreteActionEnv, Environment, Action, State, Transition
+from environment.environment import DiscreteAction, DiscreteActionEnv, Environment, State, Transition
 from network import NeuralNetwork
 from data_helper import LivePlot
 from replay_buffer import TransitionBatch, TransitionBuffer
@@ -49,7 +49,7 @@ class DQN:
         self.policy_network = DqnNetwork(self.environment)  # q1 / θ
         self.target_network = self.policy_network.create_copy()  # q2 / θ-
 
-    def get_best_action(self, state: State) -> Action:
+    def get_best_action(self, state: State) -> DiscreteAction:
         return self.policy_network.get_best_action(state)
 
     def get_action_using_epsilon_greedy(self, state: State):
@@ -61,7 +61,7 @@ class DQN:
             action = self.get_best_action(state)
         return action
 
-    def execute_action(self, action: Action) -> Transition:
+    def execute_action(self, action: DiscreteAction) -> Transition:
         return self.environment.take_action(action)
 
     # using policy
@@ -69,7 +69,7 @@ class DQN:
         return self.policy_network.get_q_values(state)
 
     # using target network here to estimate q values
-    def get_q_value_for_action(self, state: State, action: Action, policy_net=False) -> float:
+    def get_q_value_for_action(self, state: State, action: DiscreteAction, policy_net=False) -> float:
         network = self.policy_network if policy_net else self.target_network
         neural_network_result = network.get_q_values(state)
         return neural_network_result.q_value_for_action(action)
