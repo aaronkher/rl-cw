@@ -1,14 +1,46 @@
+import random
 from dataclasses import dataclass
 from abc import ABC, abstractmethod, abstractproperty
+from typing import Any
 
 import torch
-import gymnasium
+import numpy as np
+import numpy.typing as npt
 
-from network import NeuralNetwork
 
-ContinuousAction = torch.Tensor
-DiscreteAction = int
-Action = ContinuousAction | DiscreteAction
+class Action(ABC):
+    @abstractmethod
+    def gymnasium(self) -> Any:
+        ...
+
+    @abstractmethod
+    def tensor(self) -> torch.Tensor:
+        ...
+
+
+@dataclass
+class DiscreteAction(Action):
+    action: int
+
+    def gymnasium(self) -> int:
+        return self.action
+
+    def tensor(self) -> torch.Tensor:
+        return torch.tensor([self.action])
+
+
+@dataclass
+class ContinuousAction(Action):
+    action: torch.Tensor  # of float(s)
+
+    def gymnasium(self) -> np.ndarray:
+        return self.action.detach().cpu().numpy()
+
+    def tensor(self) -> torch.Tensor:
+        return self.action
+
+    def __add__(self, other) -> "ContinuousAction":
+        return ContinuousAction(self.action + other)
 
 
 @dataclass
@@ -71,12 +103,16 @@ class Environment(ABC):
 
 
 class DiscreteActionEnv(Environment):
-    @abstractmethod
-    def action_list(self) -> list[Action]:
+    @abstractproperty
+    def action_list(self) -> list[DiscreteAction]:
         ...
 
+    @property
     def action_count(self) -> int:
-        return len(self.action_list())
+        return len(self.action_list)
+
+    def random_action(self) -> DiscreteAction:
+        return random.choice(self.action_list)
 
 
 class ContinuousActionEnv(Environment):

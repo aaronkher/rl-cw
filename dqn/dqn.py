@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from dqn.dqn_network import DqnNetwork, DqnNetworkResult
 
-from environment.environment import Environment, Action, State, Transition
+from environment.environment import DiscreteActionEnv, Environment, Action, State, Transition
 from network import NeuralNetwork
 from data_helper import LivePlot
 from replay_buffer import TransitionBatch, TransitionBuffer
@@ -23,7 +23,7 @@ class TdTargetBatch:
 class DQN:
     def __init__(
         self,
-        environment: Environment,
+        environment: DiscreteActionEnv,
         episode_count: int,
         timestep_count: int,
         gamma: float,

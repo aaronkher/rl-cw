@@ -44,7 +44,7 @@ class CriticNetwork(DqnNetwork):
 
         # Tensor[Action, Action, ...]
         # where Action is int
-        experience_actions = experiences.actions.squeeze(1)
+        experience_actions = experiences.actions.unsqueeze(1)
 
         # Tensor[[QValue], [QValue], ...]
         # where QValue is float

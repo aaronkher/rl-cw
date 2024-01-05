@@ -1,6 +1,6 @@
 import torch
 from ddpg.critic_network import CriticNetwork
-from environment.environment import Action, Environment, State
+from environment.environment import Action, ContinuousAction, Environment, State
 from network import NeuralNetwork
 from replay_buffer import TransitionBatch
 
@@ -19,10 +19,10 @@ class ActorNetwork(NeuralNetwork):
         copy.copy_from(self)
         return copy
 
-    def get_action(self, state: State) -> Action:
+    def get_action(self, state: State) -> ContinuousAction:
         input = state.tensor
-        output = self(input)
-        action = output.detach().cpu().item()  # single item tensor -> float
+        output: torch.Tensor = self(input)
+        action = ContinuousAction(output)
         return action
 
     def get_actions(self, states: torch.Tensor) -> torch.Tensor:
