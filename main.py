@@ -24,7 +24,7 @@ if __name__ == "__main__":
         episode_count=10 * 1000,
         timestep_count=10 * 1000,
         gamma=0.99,
-        epsilon_start=args.epsilon_start or 0.9,
+        epsilon_start=args.epsilon_start or 0.5,
         epsilon_min=0.01,
         epsilon_decay=0.01,
         buffer_batch_size=256,
