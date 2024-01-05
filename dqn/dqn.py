@@ -212,12 +212,15 @@ class DQN:
                 running_for = now - start
 
                 suffix = None  # if should create checkpoint, will be a str
-                if episode % 100 == 0 and episode != 0:
+                if episode == self.episode_count-1: # create checkpoint after 10 episodes for startup
+                    suffix = " (startup checkpoint)"
+                if episode % 100 == 0 and episode != 0: # create checkpoint every 100 episodes
                     suffix = f" (ep {episode})"
-                if reward_sum > self.high_score + 0.01 and episode > high_score_episode + 15:
+                if reward_sum > self.high_score + 0.01: 
                     self.high_score = reward_sum
-                    high_score_episode = episode
-                    suffix = f" (hs {self.high_score:.1f})"
+                    if episode > high_score_episode + 15: # create checkpoint if high score has been beaten for 15 episodes
+                        high_score_episode = episode
+                        suffix = f" (hs {self.high_score:.1f})"
 
                 if suffix is not None:
                     self.latest_checkpoint = self.policy_network.save_checkpoint(

@@ -24,9 +24,10 @@ if __name__ == "__main__":
     best_agent: DQN | None = None
 
     for i in range(9):
+        print(f"Training agent: {i+1}\n")
         agent = DQN(
             environment=env,
-            episode_count=50,
+            episode_count=5,
             timestep_count=10 * 1000,
             gamma=0.99,
             epsilon_start=args.epsilon_start or 0.5,
@@ -44,12 +45,13 @@ if __name__ == "__main__":
         #     target_network_learning_rate=0.005,
         # )
         # ddpg.train()
-
         if agent.high_score > high_score:
+            print(f"Starting agent upgraded, new highest score: {agent.high_score}\n")
             best_agent = agent
+            high_score = agent.high_score
 
-    assert not isinstance(best_agent, type(None))
-
+    assert best_agent is not None
+    print("Training best agent \n")
     best_agent_continued = DQN(
         environment=env,
         episode_count=10 * 1000,
@@ -61,3 +63,4 @@ if __name__ == "__main__":
         buffer_batch_size=256,
         checkpoint_id=best_agent.latest_checkpoint,
     )
+    best_agent_continued.train()
