@@ -87,7 +87,7 @@ class NeuralNetwork(nn.Module):
     def copy_from(self, other: "NeuralNetwork"):
         self.load_state_dict(other.state_dict())
 
-    def save_checkpoint(self, **kwargs):
+    def save_checkpoint(self, **kwargs) -> str:
         now = datetime.now()
 
         foldername = now.strftime("%Y-%m-%d %H.%M")
@@ -105,13 +105,16 @@ class NeuralNetwork(nn.Module):
             json.dump(self.state_dict(), json_file, cls=TorchJSONEncoder)
 
         info = f"created at: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        info += f"id: {base64.b64encode(foldername.encode('utf-8')).decode('utf-8')}\n"
+        checkpoint_id = base64.b64encode(foldername.encode("utf-8")).decode("utf-8")
+        info += f"id: {checkpoint_id}\n"
         for key, value in kwargs.items():
             info += f"{key}: {value}\n"
         info += f"\n"
         info += f"comments:\n"
 
         txt_filename.write_text(info)
+
+        return checkpoint_id
 
     def load_checkpoint(self, b64_id: str):
         foldername = base64.b64decode(b64_id.encode("utf-8")).decode("utf-8")
