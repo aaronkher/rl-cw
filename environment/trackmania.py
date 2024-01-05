@@ -30,7 +30,7 @@ class TrackmaniaEnv(DiscreteActionEnv):
 
         return transition.reward >= 100 - self.track_length - self.timestep_penalty - 0.01
     def action_list(self) -> list[Action]:
-        return [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        return [0, 1, 2, 3, 4, 5]
 
     @property
     def observation_space_length(self) -> int:
@@ -49,14 +49,15 @@ class TrackmaniaEnv(DiscreteActionEnv):
     def format_action(self, nn_action: Action) -> np.ndarray:
         assert isinstance(nn_action, DiscreteAction)
 
-        # 0-2: gas 3-5: nothing 6-8: brake
-        # 0/3/6: left 1/4/7: straight 2/5/8: right
+        # 0-2: gas 3-5: nothing
+        # 0/3: left 1/4: straight 2/5: right
 
         accel = nn_action // 3
         direction = nn_action % 3
 
         gas = 1 if accel == 0 else 0
-        brake = 1 if accel == 2 else 0
+        # brake = 1 if accel == 2 else 0
+        brake = 0
         steer = direction - 1  # -1 is left, 0 is straight, 1 is right
 
         return np.array([gas, brake, steer])
