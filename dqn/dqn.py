@@ -154,7 +154,7 @@ class DQN:
         plot = LivePlot()
         plot.create_figure()
 
-        high_score = 0.0
+        self.high_score = 0.0
         high_score_episode = 0
 
         start = datetime.now()
@@ -214,13 +214,13 @@ class DQN:
                 suffix = None  # if should create checkpoint, will be a str
                 if episode % 100 == 0 and episode != 0:
                     suffix = f" (ep {episode})"
-                if reward_sum > high_score + 0.01 and episode > high_score_episode + 15:
-                    high_score = reward_sum
+                if reward_sum > self.high_score + 0.01 and episode > high_score_episode + 15:
+                    self.high_score = reward_sum
                     high_score_episode = episode
-                    suffix = f" (hs {high_score:.1f})"
+                    suffix = f" (hs {self.high_score:.1f})"
 
                 if suffix is not None:
-                    self.policy_network.save_checkpoint(
+                    self.latest_checkpoint = self.policy_network.save_checkpoint(
                         episode_number=episode,
                         reward=reward_sum,
                         won=won,
