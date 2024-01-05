@@ -57,14 +57,29 @@ class DQN:
 
     def get_best_action(self, state: State) -> Action:
         return self.policy_network.get_best_action(state)
+    
+    def get_action_probability_distribution(self, q_values: DqnNetworkResult) -> np.ndarray:
+        # q_values: DqnNetworkResult
+        # q_values.tensor: Tensor[QValue, QValue, ...]
+        q_value_sum = torch.sum(q_values.tensor)
+        return (q_values.tensor / q_value_sum).numpy()
+    
+    def get_action_from_probability_distribution(self, probability_distribution: np.ndarray) -> Action:
+        # probability_distribution: np.ndarray
+        # probability_distribution: [0.1, 0.2, 0.7]
+        return np.random.choice(
+            self.environment.action_list,
+            p=probability_distribution
+        )
 
-    def get_action_using_epsilon_greedy(self, state: State):
+    def get_action_using_epsilon_greedy(self, state: State, action: Action):
         if np.random.uniform(0, 1) < self.epsilon:
             # pick random action
             action = self.environment.random_action()
         else:
             # pick best action
-            action = self.get_best_action(state)
+            # action = self.get_best_action(state)
+            return action
         return action
 
     def execute_action(self, action: Action) -> Transition:
@@ -171,7 +186,9 @@ class DQN:
 
                 for timestep in range(self.timestep_count):
                     state = self.environment.current_state  # S_t
-                    action = self.get_action_using_epsilon_greedy(state)  # A_t
+                    action_probabilities = self.get_action_probability_distribution(self.get_q_values(state))
+                    action_from_policy = self.get_action_from_probability_distribution(action_probabilities)
+                    action = self.get_action_using_epsilon_greedy(state, action_from_policy)  # A_t
 
                     transition = self.execute_action(action)
                     reward_sum += transition.reward
