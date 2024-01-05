@@ -5,7 +5,7 @@ import typing
 import numpy as np
 from numpy import ndarray
 import torch
-from environment import Transition
+from environment.environment import Transition
 from network import NeuralNetwork
 
 
@@ -24,7 +24,7 @@ class TransitionBatch:
         self.size = len(experiences)
 
         # Tensor[[0], [2], [1], ...]
-        self.actions = NeuralNetwork.tensorify([[exp.transition.action] for exp in experiences])
+        self.actions = NeuralNetwork.tensorify([exp.transition.action.tensor() for exp in experiences])
 
         # Tensor[-0.99, -0.99, ...]
         self.rewards = NeuralNetwork.tensorify([exp.transition.reward for exp in experiences])

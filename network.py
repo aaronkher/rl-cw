@@ -4,11 +4,12 @@ from typing import cast, TYPE_CHECKING, Any, Iterable
 
 import torch
 from torch import nn
+import numpy as np
 
 
 # prevent circular import
 if TYPE_CHECKING:
-    from environment import State, Environment, Action
+    from environment.environment import State, Environment, Action
     from dqn.dqn import TransitionBatch, TdTargetBatch
 else:
     Experience = object
@@ -31,6 +32,8 @@ class NeuralNetwork(nn.Module):
     @staticmethod
     def tensorify(array: Iterable) -> torch.Tensor:
         """Create a PyTorch tensor, and make sure it's on the GPU if possible"""
+        if isinstance(array, list):
+            assert not isinstance(array[0], np.ndarray)
         return torch.tensor(array, device=NeuralNetwork.device())
 
     def __init__(self, inputs: int, outputs: int, neurons: int = 128):

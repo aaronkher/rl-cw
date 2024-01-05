@@ -1,8 +1,10 @@
 from ddpg.ddpg import DDPG
 from dqn.dqn import DQN
+from environment.gymnasium import CartpoleEnv, PendulumEnv
 
 if __name__ == "__main__":
     # dqn = DQN(
+    #     environment=CartpoleEnv(render=True),
     #     episode_count=600,
     #     timestep_count=10*1000,
     #     gamma=0.99,
@@ -14,6 +16,7 @@ if __name__ == "__main__":
     # dqn.train()
 
     ddpg = DDPG(
+        environment=PendulumEnv(render=True),
         episode_count=600,
         gamma=0.99,
         buffer_batch_size=128,

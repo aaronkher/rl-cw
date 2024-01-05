@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 import torch
 from dqn.dqn_network import DqnNetwork, DqnNetworkResultBatch
-from environment import Action, Environment, State
+from environment.environment import Action, Environment, State
 from replay_buffer import TransitionBatch
 from network import NeuralNetwork
 
@@ -44,7 +44,7 @@ class CriticNetwork(DqnNetwork):
 
         # Tensor[Action, Action, ...]
         # where Action is int
-        experience_actions = experiences.actions.squeeze(1)
+        experience_actions = experiences.actions.unsqueeze(1)
 
         # Tensor[[QValue], [QValue], ...]
         # where QValue is float

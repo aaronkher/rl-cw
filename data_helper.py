@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 
-from environment import Transition
+from environment.environment import Transition
 
 
 # @dataclass

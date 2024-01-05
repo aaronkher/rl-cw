@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from dqn.dqn_network import DqnNetwork, DqnNetworkResult
 
-from environment import CartpoleEnv, Environment, Action, State, Transition
+from environment.environment import DiscreteActionEnv, Environment, Action, State, Transition
 from network import NeuralNetwork
 from data_helper import LivePlot
 from replay_buffer import TransitionBatch, TransitionBuffer
@@ -23,6 +23,7 @@ class TdTargetBatch:
 class DQN:
     def __init__(
         self,
+        environment: DiscreteActionEnv,
         episode_count: int,
         timestep_count: int,
         gamma: float,
@@ -42,7 +43,7 @@ class DQN:
         self.gamma = gamma
         self.buffer_batch_size = buffer_batch_size
 
-        self.environment = CartpoleEnv()
+        self.environment = environment
 
         self.transition_buffer = TransitionBuffer(omega=0.5)
         self.policy_network = DqnNetwork(self.environment)  # q1 / θ
@@ -54,7 +55,7 @@ class DQN:
     def get_action_using_epsilon_greedy(self, state: State):
         if np.random.uniform(0, 1) < self.epsilon:
             # pick random action
-            action = random.choice(self.environment.action_list)
+            action = self.environment.random_action()
         else:
             # pick best action
             action = self.get_best_action(state)

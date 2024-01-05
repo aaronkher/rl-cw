@@ -7,7 +7,7 @@ import numpy as np
 from data_helper import LivePlot
 from ddpg.actor_network import ActorNetwork
 from ddpg.critic_network import CriticNetwork
-from environment import Action, PendulumEnv, State
+from environment.environment import Action, ContinuousAction, ContinuousActionEnv, Environment, State
 from replay_buffer import TransitionBatch, TransitionBuffer
 
 
@@ -20,6 +20,7 @@ class TdTargetBatch:
 class DDPG:
     def __init__(
         self,
+        environment: ContinuousActionEnv,
         episode_count: int,
         gamma: float,
         buffer_batch_size: int,
@@ -32,7 +33,7 @@ class DDPG:
         self.target_network_learning_rate = target_network_learning_rate
         self.sigma = sigma
 
-        self.environment = PendulumEnv()
+        self.environment = environment
         self.transition_buffer = TransitionBuffer(omega=0.5)
 
         self.critic_network = CriticNetwork(self.environment)
@@ -41,8 +42,10 @@ class DDPG:
         self.actor_network = ActorNetwork(self.environment, self.critic_network)
         self.target_actor_network = self.actor_network.create_copy()
 
-    def get_action(self, state: State) -> Action:
+    def get_action(self, state: State) -> ContinuousAction:
         perfect_action = self.actor_network.get_action(state)
+        assert isinstance(perfect_action, ContinuousAction)
+
         noise = self.compute_OU_noise(0, 0.15, self.sigma)
         return perfect_action + noise
 
