@@ -17,14 +17,18 @@ class TrackmaniaEnv(DiscreteActionEnv):
         self._current_state: State
         self.last_action_taken: Transition | None
 
-        self.timestep_penalty = 0.
+        self.timestep_penalty = 0.05
 
         # hardcoded for track RL01 straight
         self.track_length = 20.86
         self.track_length_done = 0
 
     def won(self, transition: Transition) -> bool:
-        return transition.reward == 100 - self.timestep_penalty
+        # return abs(transition.reward - (100 - self.timestep_penalty)) < 0.001
+        # reward_if_won = 100 - self.timestep_penalty
+        # return abs(transition.reward - reward_if_won) < 0.001
+
+        return transition.reward >= 100 - self.track_length - self.timestep_penalty - 0.01
 
     def action_list(self) -> list[Action]:
         return [0, 1, 2, 3, 4, 5, 6, 7, 8]
@@ -67,7 +71,7 @@ class TrackmaniaEnv(DiscreteActionEnv):
         reward = float(_reward)
 
         # reward engineering
-        reward -= self.timestep_penalty # adding penalty for each timestep
+        reward -= self.timestep_penalty  # adding penalty for each timestep
         # if reward != 100 - self.timestep_penalty: # if we lost
         #     reward -= 50 # add penalty for losing
 
@@ -77,7 +81,6 @@ class TrackmaniaEnv(DiscreteActionEnv):
             # we lost, punish it for the distance it didn't do
             reward -= self.track_length - self.track_length_done
             self.track_length_done = 0
-
 
         self._current_state = new_state
         self.last_action_taken = Transition(

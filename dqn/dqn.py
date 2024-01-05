@@ -211,10 +211,10 @@ class DQN:
                 now = datetime.now()
                 running_for = now - start
 
-                suffix = None
-                if episode % 100 == 0:
+                suffix = None  # if should create checkpoint, will be a str
+                if episode % 100 == 0 and episode != 0:
                     suffix = f" (ep {episode})"
-                if reward_sum > high_score and episode > high_score_episode + 15:
+                if reward_sum > high_score + 0.01 and episode > high_score_episode + 15:
                     high_score = reward_sum
                     high_score_episode = episode
                     suffix = f" (hs {high_score:.1f})"
