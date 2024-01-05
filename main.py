@@ -5,17 +5,19 @@ from dqn.dqn import DQN
 from environment.trackmania import TrackmaniaEnv
 from argparse import ArgumentParser
 
+
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("checkpoint_id", type=str, help="The checkpoint id to load from")
+    parser.add_argument("checkpoint_id", type=str, help="The checkpoint id to load from", nargs="?")
     parser.add_argument("--epsilon_start", type=float, help="The epsilon start value")
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     env = TrackmaniaEnv()
     args = parse_args()
-    checkpoint_id = args.checkpoint_id
-    epsilon_start = args.epsilon_start
+    checkpoint_id: str | None = args.checkpoint_id
+    epsilon_start: float | None = args.epsilon_start
 
     dqn = DQN(
         environment=env,

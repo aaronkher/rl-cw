@@ -17,8 +17,10 @@ class TrackmaniaEnv(DiscreteActionEnv):
         self._current_state: State
         self.last_action_taken: Transition | None
 
+        self.timestep_penalty = 0.05
+
     def won(self, transition: Transition) -> bool:
-        return True  # todo
+        return transition.reward == 100 - self.timestep_penalty
 
     def action_list(self) -> list[Action]:
         return [0, 1, 2, 3, 4, 5, 6, 7, 8]
@@ -59,7 +61,11 @@ class TrackmaniaEnv(DiscreteActionEnv):
 
         new_state = self.tensorify_state(new_state_ndarray, terminated)
         reward = float(_reward)
-        reward -= 0.2 # adding penalty for each timestep
+
+        # reward engineering
+        reward -= self.timestep_penalty # adding penalty for each timestep
+        # if reward != 100 - self.timestep_penalty: # if we lost
+        #     reward -= 50 # add penalty for losing
 
         self._current_state = new_state
         self.last_action_taken = Transition(

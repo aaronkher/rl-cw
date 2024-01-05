@@ -199,13 +199,13 @@ class DQN:
 
                 # print episode result
                 assert transition is not None
-                won = transition.truncated
+                won = self.environment.won(transition)
                 won_str = "(won) " if won else "(lost)"
                 running_avg = sum(recent_rewards) / len(recent_rewards)
                 print(
                     f"Episode {episode+1: <3} | {timestep+1: >3} timesteps {won_str}"
                     f" | reward {reward_sum: <6.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards): <2})"
-                    f" | ε {self.epsilon:.2f}"
+                    f" | ε {self.epsilon:.2f} | last_reward {transition.reward:.2f} won {won}"
                 )
 
                 now = datetime.now()
