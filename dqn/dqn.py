@@ -72,14 +72,14 @@ class DQN:
             p=probability_distribution
         )
 
-    def get_action_using_epsilon_greedy(self, state: State, action: Action):
+    def get_action_using_epsilon_greedy(self, state: State):
         if np.random.uniform(0, 1) < self.epsilon:
             # pick random action
             action = self.environment.random_action()
         else:
             # pick best action
-            # action = self.get_best_action(state)
-            return action
+            action = self.get_best_action(state)
+            # return action
         return action
 
     def execute_action(self, action: Action) -> Transition:
@@ -186,9 +186,9 @@ class DQN:
 
                 for timestep in range(self.timestep_count):
                     state = self.environment.current_state  # S_t
-                    action_probabilities = self.get_action_probability_distribution(self.get_q_values(state))
-                    action_from_policy = self.get_action_from_probability_distribution(action_probabilities)
-                    action = self.get_action_using_epsilon_greedy(state, action_from_policy)  # A_t
+                    # action_probabilities = self.get_action_probability_distribution(self.get_q_values(state))
+                    # action_from_policy = self.get_action_from_probability_distribution(action_probabilities)
+                    action = self.get_action_using_epsilon_greedy(state)  # A_t
 
                     transition = self.execute_action(action)
                     reward_sum += transition.reward
