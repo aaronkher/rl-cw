@@ -2,6 +2,7 @@ import sys
 
 from ddpg.ddpg import DDPG
 from dqn.dqn import DQN
+from environment.gymnasium import CartpoleEnv, MountainCarEnv, PendulumEnv
 from environment.trackmania import ControllerTrackmania, KeyboardTrackmania
 from argparse import ArgumentParser
 
@@ -16,6 +17,20 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    dqn = DQN(
+            environment=MountainCarEnv(render=True),
+            episode_count=10**100,
+            timestep_count=10**100,
+            gamma=0.99,
+            epsilon_start=0.5,
+            epsilon_min=0.01,
+            epsilon_decay=0.01,
+            buffer_batch_size=256,
+        )
+    dqn.train()
+
+    sys.exit(0)
+
     args = parse_args()
     checkpoint_id: str | None = args.checkpoint_id
     epsilon_start: float | None = args.epsilon_start
