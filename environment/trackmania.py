@@ -109,14 +109,23 @@ class TrackmaniaEnv(Environment):
         R = 0x13
         UP = 0xC8
         ENTER = 0x1C
+        LEFT = 0xCB
+        DOWN = 0xD0
         wait_time = 0.05
         control_keyboard.PressKey(R)
         time.sleep(wait_time)
         control_keyboard.ReleaseKey(R)
         time.sleep(wait_time)
-        control_keyboard.PressKey(UP)
+        for i in range(20):
+            control_keyboard.PressKey(LEFT)
+            control_keyboard.ReleaseKey(LEFT)
+        control_keyboard.PressKey(DOWN)
         time.sleep(wait_time)
-        control_keyboard.ReleaseKey(UP)
+        control_keyboard.ReleaseKey(DOWN)
+        time.sleep(wait_time)
+        control_keyboard.PressKey(ENTER)
+        time.sleep(wait_time)
+        control_keyboard.ReleaseKey(ENTER)
         time.sleep(wait_time)
         control_keyboard.PressKey(ENTER)
         time.sleep(wait_time)
