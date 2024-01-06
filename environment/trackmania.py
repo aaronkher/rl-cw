@@ -70,7 +70,7 @@ class TrackmaniaEnv(Environment):
 
         # reward engineering
         progress = self.track_progress(new_state_ndarray)
-        won = progress == 1.0
+        won = progress > 0.99
         if terminated and not won:
             # we lost, punish it for the distance it didn't do
             reward -= (1 - progress) * 100
