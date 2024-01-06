@@ -9,9 +9,6 @@ from environment.environment import Transition
 from network import NeuralNetwork
 
 
-# === TRANSITION/TIMESTEP BATCH ===
-
-
 @dataclass
 class Experience:
     transition: Transition
@@ -24,7 +21,8 @@ class TransitionBatch:
         self.size = len(experiences)
 
         # Tensor[[0], [2], [1], ...]
-        self.actions = NeuralNetwork.tensorify([[exp.transition.action.tensor()] for exp in experiences])
+        self.actions = NeuralNetwork.tensorify(np.array([exp.transition.action.numpy() for exp in experiences])).type(torch.int64)
+        self.actions = self.actions
 
         # Tensor[-0.99, -0.99, ...]
         self.rewards = NeuralNetwork.tensorify([exp.transition.reward for exp in experiences])
@@ -50,7 +48,7 @@ class TransitionBuffer:
 
     def add(self, transition: Transition):
         self.new_transitions.append(transition)
-    
+
     def get_priorities(self) -> ndarray | None:
         priorities = np.array([exp.td_error for exp in self.buffer])
         priorities /= priorities.sum()
@@ -79,6 +77,6 @@ class TransitionBuffer:
             self.buffer.extend(new_experiences)
 
         return TransitionBatch(experiences)
-    
+
     def size(self):
         return len(self.buffer) + len(self.new_transitions)

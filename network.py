@@ -1,5 +1,9 @@
-import os
 from dataclasses import dataclass
+from datetime import datetime
+import base64
+import json
+import os
+from pathlib import Path
 from typing import cast, TYPE_CHECKING, Any, Iterable
 
 import torch
@@ -20,6 +24,32 @@ else:
     TdTargetBatch = object
 
 
+class TorchJSONEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder for torch tensors, used in the custom save() method of our ActorModule.
+    """
+
+    def default(self, obj):
+        if isinstance(obj, torch.Tensor):
+            return obj.cpu().detach().numpy().tolist()
+        return json.JSONEncoder.default(self, obj)
+
+
+class TorchJSONDecoder(json.JSONDecoder):
+    """
+    Custom JSON decoder for torch tensors, used in the custom load() method of our ActorModule.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(object_hook=self.object_hook, *args, **kwargs)
+
+    def object_hook(self, dct):
+        for key in dct.keys():
+            if isinstance(dct[key], list):
+                dct[key] = torch.Tensor(dct[key])
+        return dct
+
+
 class NeuralNetwork(nn.Module):
     @staticmethod
     def device() -> torch.device:
@@ -32,8 +62,6 @@ class NeuralNetwork(nn.Module):
     @staticmethod
     def tensorify(array: Iterable) -> torch.Tensor:
         """Create a PyTorch tensor, and make sure it's on the GPU if possible"""
-        if isinstance(array, list):
-            assert not isinstance(array[0], np.ndarray)
         return torch.tensor(array, device=NeuralNetwork.device())
 
     def __init__(self, inputs: int, outputs: int):
@@ -52,6 +80,48 @@ class NeuralNetwork(nn.Module):
 
     def copy_from(self, other: "NeuralNetwork"):
         self.load_state_dict(other.state_dict())
+
+    def save_checkpoint(
+        self,
+        suffix: str | None = None,
+        filename: str = "weights",
+        **kwargs,
+    ) -> str:
+        now = datetime.now()
+
+        foldername = now.strftime("%Y-%m-%d %H.%M")
+        if suffix is not None:
+            foldername += f" {suffix}"
+
+        folder = Path(__file__).parent / "checkpoints" / foldername
+        os.makedirs(folder, exist_ok=True)
+
+        json_filename = Path(__file__).parent / "checkpoints" / foldername / f"{filename}.json"
+        txt_filename = Path(__file__).parent / "checkpoints" / foldername / "info.txt"
+
+        with open(json_filename, "w") as json_file:
+            json.dump(self.state_dict(), json_file, cls=TorchJSONEncoder)
+
+        info = f"created at: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        checkpoint_id = base64.b64encode(foldername.encode("utf-8")).decode("utf-8")
+        info += f"id: {checkpoint_id}\n"
+        for key, value in kwargs.items():
+            info += f"{key}: {value}\n"
+        info += f"\n"
+        info += f"comments:\n"
+
+        txt_filename.write_text(info)
+
+        return checkpoint_id
+
+    def load_checkpoint(self, b64_id: str, filename: str = "weights"):
+        foldername = base64.b64decode(b64_id.encode("utf-8")).decode("utf-8")
+        json_filename = Path(__file__).parent / "checkpoints" / foldername / f"{filename}.json"
+
+        with open(json_filename, "r") as json_file:
+            self.load_state_dict(json.load(json_file, cls=TorchJSONDecoder))
+
+        print(f"loaded checkpoint from: {json_filename}")
 
     def create_stack(self) -> nn.Sequential:
         # default stack, subclasses can override this

@@ -1,6 +1,5 @@
 import time
 
-
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -27,15 +26,18 @@ class LivePlot:
         self.rewards.add_data_point(reward, running_avg, won)
         self.tick()
 
-    def add_losses(self, actor_loss: float, critic_loss: float | None = None):
+    def add_losses(self, actor_loss: float, critic_loss: float | None = None, can_redraw: bool = True):
         self.actor_loss.add_data_point(actor_loss)
         if critic_loss is not None:
             self.critic_loss.add_data_point(critic_loss)
 
-        self.tick()
+        self.tick(can_redraw)
 
-    def tick(self):
+    def tick(self, can_redraw: bool = True):
         self.figure.canvas.flush_events()
+
+        if not can_redraw:
+            return
 
         # we want to spend less than 5% time drawing the figure
         time_since_last_draw = time.time() - self.last_draw
@@ -61,6 +63,9 @@ class LivePlot:
 
         figure.canvas.draw()
         figure.canvas.flush_events()
+
+    def close(self):
+        plt.close()
 
 
 class PlotGraph:

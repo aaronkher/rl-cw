@@ -1,7 +1,8 @@
 import random
 from dataclasses import dataclass
-import math
 import collections
+from datetime import datetime
+import math
 from typing import Iterable, Deque
 
 import torch
@@ -31,6 +32,7 @@ class DQN:
         epsilon_min: float = 0.01,
         epsilon_decay: float = 0.05,
         buffer_batch_size: int = 100,
+        checkpoint_id: str | None = None,
     ):
         self.episode_count = episode_count
         self.timestep_count = timestep_count
@@ -49,8 +51,27 @@ class DQN:
         self.policy_network = DqnNetwork(self.environment)  # q1 / θ
         self.target_network = self.policy_network.create_copy()  # q2 / θ-
 
+        self.latest_checkpoint = None
+        self.checkpoint_id = checkpoint_id
+        if checkpoint_id is not None:
+            self.policy_network.load_checkpoint(checkpoint_id)
+            self.target_network.load_checkpoint(checkpoint_id)
+
     def get_best_action(self, state: State) -> DiscreteAction:
         return self.policy_network.get_best_action(state)
+
+    def get_action_probability_distribution(self, q_values: DqnNetworkResult) -> np.ndarray:
+        # q_values: DqnNetworkResult
+        # q_values.tensor: Tensor[QValue, QValue, ...]
+        q_value_sum = torch.sum(q_values.tensor)
+        return (q_values.tensor / q_value_sum).numpy()
+
+    def get_action_from_probability_distribution(self, probability_distribution: np.ndarray) -> DiscreteAction:
+        # probability_distribution: np.ndarray
+        # probability_distribution: [0.1, 0.2, 0.7]
+        possible_actions = [a.action for a in self.environment.action_list]
+        action = np.random.choice(possible_actions, p=probability_distribution)
+        return DiscreteAction(action)
 
     def get_action_using_epsilon_greedy(self, state: State):
         if np.random.uniform(0, 1) < self.epsilon:
@@ -59,6 +80,7 @@ class DQN:
         else:
             # pick best action
             action = self.get_best_action(state)
+            # return action
         return action
 
     def execute_action(self, action: DiscreteAction) -> Transition:
@@ -146,6 +168,11 @@ class DQN:
     def train(self):
         plot = LivePlot()
 
+        self.high_score = 0.0
+        high_score_episode = 0
+
+        start = datetime.now()
+
         try:
             recent_rewards = collections.deque(maxlen=30)
             for episode in range(self.episode_count):
@@ -157,6 +184,8 @@ class DQN:
 
                 for timestep in range(self.timestep_count):
                     state = self.environment.current_state  # S_t
+                    # action_probabilities = self.get_action_probability_distribution(self.get_q_values(state))
+                    # action_from_policy = self.get_action_from_probability_distribution(action_probabilities)
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
 
                     transition = self.execute_action(action)
@@ -168,7 +197,7 @@ class DQN:
                         td_targets = self.compute_td_targets_batch(replay_batch)
 
                         loss = self.backprop(replay_batch, td_targets)
-                        plot.add_losses(loss)
+                        plot.add_losses(loss, can_redraw=False)
 
                         self.update_experiences_td_errors(replay_batch)
 
@@ -183,18 +212,46 @@ class DQN:
 
                 # print episode result
                 assert transition is not None
-                won = transition.truncated
+                won = self.environment.won(transition)
                 won_str = "(won) " if won else "(lost)"
                 running_avg = sum(recent_rewards) / len(recent_rewards)
                 print(
                     f"Episode {episode+1: <3} | {timestep+1: >3} timesteps {won_str}"
-                    f" | reward {reward_sum: <6.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards): <2})"
-                    f" | ε {self.epsilon:.2f}"
+                    f" | reward {reward_sum: <6.2f} | avg {running_avg: <6.2f} {f'(last {len(recent_rewards)})': <9}"
+                    f" | ε {self.epsilon:.2f} | last_reward {transition.reward:.2f} won {won}"
                 )
+
+                now = datetime.now()
+                running_for = now - start
+
+                suffix = None  # if should create checkpoint, will be a str
+                if episode == self.episode_count - 1:  # create checkpoint after 10 episodes for startup
+                    suffix = " (startup checkpoint)"
+                if episode % 100 == 0 and episode != 0:  # create checkpoint every 100 episodes
+                    suffix = f" (ep {episode})"
+                if reward_sum > self.high_score + 0.01:
+                    self.high_score = reward_sum
+                    if (
+                        episode > high_score_episode + 15
+                    ):  # create checkpoint if high score has been beaten for 15 episodes
+                        high_score_episode = episode
+                        suffix = f" (hs {self.high_score:.1f})"
+
+                if suffix is not None:
+                    self.latest_checkpoint = self.policy_network.save_checkpoint(
+                        episode_number=episode,
+                        reward=reward_sum,
+                        won=won,
+                        epsilon=self.epsilon,
+                        running_since=start,
+                        running_for=running_for,
+                        start_checkpoint=self.checkpoint_id,
+                        previous_checkpoint=self.latest_checkpoint,
+                        suffix=suffix,
+                    )
 
                 self.decay_epsilon(episode)
 
-                # episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 plot.add_episode(reward_sum, won, running_avg)
                 if episode % 5 == 0:
                     plot.draw()
@@ -206,3 +263,5 @@ class DQN:
             plot.draw()
         except KeyboardInterrupt:
             pass  # ctrl-c to close plot
+
+        plot.close()

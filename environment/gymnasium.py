@@ -52,7 +52,13 @@ class GymnasiumEnv(Environment):
             reward,
             truncated,
         )
+
+        self.last_action_taken.reward = self.reward_engineering(self.last_action_taken)
+
         return self.last_action_taken
+
+    def reward_engineering(self, transition: Transition) -> float:
+        return transition.reward  # override this to do reward engineering
 
     def reset(self):
         (current_state, _) = self.env.reset()
@@ -96,6 +102,26 @@ class CartpoleEnv(DiscreteGymnasiumEnv):
     def won(self, transition: Transition) -> bool:
         # truncated means we didn't survive till the end
         return not transition.truncated
+
+
+class MountainCarEnv(DiscreteGymnasiumEnv):
+    def __init__(self, render: bool = False):
+        super().__init__("MountainCar-v0", render)
+
+    def reward_engineering(self, transition: Transition) -> float:
+        old_state = transition.old_state
+        _, old_velocity = old_state.tensor 
+        new_state = transition.new_state
+        _, new_velocity = new_state.tensor
+
+        acceleration = (abs(float(new_velocity)) - abs(float(old_velocity))) * 100
+
+        return transition.reward + acceleration
+
+    def won(self, transition: Transition) -> bool:
+        # terminated means we reached the finish line
+        return transition.new_state.terminal
+        
 
 
 class ContinuousGymnasiumEnv(GymnasiumEnv, ContinuousActionEnv):

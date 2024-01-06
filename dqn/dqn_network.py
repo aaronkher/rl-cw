@@ -11,7 +11,7 @@ from network import NeuralNetwork
 
 # prevent circular import
 if TYPE_CHECKING:
-    from environment.environment import State, Environment
+    from environment.environment import State, Environment, Action
     from dqn.dqn import TransitionBatch, TdTargetBatch
 else:
     Experience = object
@@ -69,6 +69,16 @@ class DqnNetwork(NeuralNetwork):
         inputs = env.observation_space_length
         outputs = env.action_count
         super(DqnNetwork, self).__init__(inputs, outputs)
+
+    def create_stack(self) -> nn.Sequential:
+        neurons = 512
+        return nn.Sequential(
+            nn.Linear(self.inputs, neurons),
+            nn.ReLU(),
+            nn.Linear(neurons, neurons),
+            nn.ReLU(),
+            nn.Linear(neurons, self.outputs),
+        )
 
     def create_copy(self) -> "DqnNetwork":
         copy = DqnNetwork(self.environment)
