@@ -59,8 +59,6 @@ class DDPG:
         self.sigma = sigma
         self.previous_noise = mu
 
-        torch.autograd.set_detect_anomaly(True)
-
     def get_action(self, state: State) -> ContinuousAction:
         perfect_action = self.actor_network.get_action(state)
         assert isinstance(perfect_action, ContinuousAction)
@@ -118,7 +116,7 @@ class DDPG:
     def train(self):
         plot = LivePlot()
 
-        self.high_score = 0.0
+        self.high_score = float("-inf")
         high_score_episode = 0
 
         start = datetime.now()

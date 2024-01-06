@@ -170,7 +170,7 @@ class DQN:
     def train(self):
         plot = LivePlot()
 
-        self.high_score = 0.0
+        self.high_score = float("-inf")
         high_score_episode = 0
 
         start = datetime.now()
