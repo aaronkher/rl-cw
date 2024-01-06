@@ -8,8 +8,6 @@ import torch
 import numpy as np
 import numpy.typing as npt
 
-from network import NeuralNetwork
-
 
 class Action(ABC):
     @abstractmethod
@@ -29,7 +27,7 @@ class DiscreteAction(Action):
         return self.action
 
     def numpy(self) -> np.ndarray:
-        return np.array([self.action])
+        return np.asarray([self.action])
 
 
 @dataclass
@@ -39,11 +37,14 @@ class ContinuousAction(Action):
     def gymnasium(self) -> np.ndarray:
         return self.action.detach().cpu().numpy()
 
-    def numpy(self) -> np.ndarray:
-        return self.gymnasium()
+    def clamp(self, low: float, high: float):
+        self.action = torch.clamp(self.action, low, high)
 
     def __add__(self, other) -> "ContinuousAction":
         return ContinuousAction(self.action + other)
+
+    def numpy(self) -> np.ndarray:
+        return self.action.detach().cpu().numpy()
 
 
 @dataclass

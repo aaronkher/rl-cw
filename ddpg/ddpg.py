@@ -59,12 +59,16 @@ class DDPG:
         self.sigma = sigma
         self.previous_noise = mu
 
+        torch.autograd.set_detect_anomaly(True)
+
     def get_action(self, state: State) -> ContinuousAction:
         perfect_action = self.actor_network.get_action(state)
         assert isinstance(perfect_action, ContinuousAction)
 
         noise = self.compute_OU_noise()
-        return perfect_action + noise
+        action = perfect_action + noise
+        action.clamp(-1, 1)
+        return action
 
     def compute_OU_noise(self) -> float:
         # https://en.wikipedia.org/wiki/Ornstein%E2%80%93Uhlenbeck_process

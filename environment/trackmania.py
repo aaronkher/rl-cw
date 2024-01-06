@@ -1,6 +1,9 @@
 import math
+import os
 from typing import Iterable
-from dataclasses import dataclass
+from pathlib import Path
+import json
+
 
 import torch
 import numpy as np
@@ -58,8 +61,8 @@ class TrackmaniaEnv(Environment):
         return State(state_tensor, terminated)
 
     def take_action(self, raw_action: Action, gas: float, steer: float) -> Transition:
-        # gas between 0 and 1
-        # steer between -1 and 1
+        assert 0 <= gas <= 1
+        assert -1 <= steer <= 1
         formatted_action = np.array([gas, 0.0, steer])
 
         old_state = self.current_state
@@ -76,15 +79,6 @@ class TrackmaniaEnv(Environment):
             reward -= (1 - progress) * 100
 
         reward -= self.timestep_penalty  # adding penalty for each timestep
-        # if reward != 100 - self.timestep_penalty: # if we lost
-        #     reward -= 50 # add penalty for losing
-
-        # if not terminated:
-        #     self.track_length_done += reward
-        # elif terminated and reward != 100 - self.timestep_penalty:
-        #     # we lost, punish it for the distance it didn't do
-        #     reward -= self.track_length - self.track_length_done
-        #     self.track_length_done = 0
 
         self._current_state = new_state
         self.last_action_taken = Transition(
@@ -117,6 +111,10 @@ class TrackmaniaEnv(Environment):
 
 
 class KeyboardTrackmania(TrackmaniaEnv, DiscreteActionEnv):
+    def __init__(self):
+        set_virtual_gamepad(False)
+        super().__init__()
+
     @property
     def action_list(self) -> list[DiscreteAction]:
         actions = [0, 1, 2, 3, 4, 5]
@@ -145,21 +143,35 @@ class KeyboardTrackmania(TrackmaniaEnv, DiscreteActionEnv):
 
 
 class ControllerTrackmania(TrackmaniaEnv, ContinuousActionEnv):
+    def __init__(self):
+        set_virtual_gamepad(True)
+        super().__init__()
+
     @property
     def action_count(self) -> int:
         return 2  # gas and steer
 
     def take_action(self, action: ContinuousAction) -> Transition:
         gas, steer = action.action
+        gas = gas * 0.5 + 0.5  # [-1, 1] -> [0, 1]
         return super().take_action(action, float(gas), float(steer))
 
     def random_action(self) -> ContinuousAction:
         # torch.rand(1) returns float in [0, 1]
-        gas = torch.rand(1)
+        gas = torch.rand(1) * 2 - 1
         steer = torch.rand(1) * 2 - 1
         tensor = NeuralNetwork.tensorify([gas, steer])
         return ContinuousAction(tensor)
 
 
-# def set_virtual_gamepad(virtual_gamepad: bool):
-#     config_path =
+def set_virtual_gamepad(virtual_gamepad: bool):
+    userprofile_path = os.getenv("USERPROFILE")  # C:\Users\...
+    assert userprofile_path is not None
+
+    config_path = Path(userprofile_path) / "TmrlData" / "config" / "config.json"
+    config_contents = json.loads(config_path.read_text())
+
+    config_contents["VIRTUAL_GAMEPAD"] = virtual_gamepad
+
+    with config_path.open("w") as config_file:
+        json.dump(config_contents, config_file, indent=2)

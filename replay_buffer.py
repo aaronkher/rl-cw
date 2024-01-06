@@ -19,10 +19,14 @@ class TransitionBatch:
     def __init__(self, experiences: list[Experience]):
         self.experiences = experiences
         self.size = len(experiences)
+        #in
+        #List[0, 2, 3, 6 ...]
+        #List[[0.5, -0.7], [0.1, 0], ...]
 
-        # Tensor[[0], [2], [1], ...]
-        self.actions = NeuralNetwork.tensorify(np.array([exp.transition.action.numpy() for exp in experiences])).type(torch.int64)
-        self.actions = self.actions
+        #out
+        # Tensor[[0], [2], [1], ...] for disctete
+        # Tensor[[0.5, -0.7], [0.1, 0], ...] for continuous
+        self.actions = NeuralNetwork.tensorify(np.array([exp.transition.action.numpy() for exp in experiences]))
 
         # Tensor[-0.99, -0.99, ...]
         self.rewards = NeuralNetwork.tensorify([exp.transition.reward for exp in experiences])
