@@ -1,13 +1,15 @@
 import collections
 from dataclasses import dataclass
-import numpy as np
+import random
+import math
 
+import numpy as np
 import torch
 import numpy as np
 from data_helper import LivePlot
 from ddpg.actor_network import ActorNetwork
 from ddpg.critic_network import CriticNetwork
-from environment.environment import Action, ContinuousAction, Environment, State
+from environment.environment import Action, ContinuousAction, ContinuousActionEnv, Environment, State
 from replay_buffer import TransitionBatch, TransitionBuffer
 
 
@@ -20,18 +22,19 @@ class TdTargetBatch:
 class DDPG:
     def __init__(
         self,
-        environment: Environment,
+        environment: ContinuousActionEnv,
         episode_count: int,
         gamma: float,
         buffer_batch_size: int,
         target_network_learning_rate: float,
-        sigma: float = 0.15,
+        mu: float = 0.0,
+        theta: float = 0.15,
+        sigma: float = 0.2,
     ):
         self.episode_count = episode_count
         self.gamma = gamma
         self.buffer_batch_size = buffer_batch_size
         self.target_network_learning_rate = target_network_learning_rate
-        self.sigma = sigma
 
         self.environment = environment
         self.transition_buffer = TransitionBuffer(omega=0.5)
@@ -42,16 +45,26 @@ class DDPG:
         self.actor_network = ActorNetwork(self.environment, self.critic_network)
         self.target_actor_network = self.actor_network.create_copy()
 
-    def get_action(self, state: State) -> Action:
+        self.mu = mu
+        self.theta = theta
+        self.sigma = sigma
+        self.previous_noise = mu
+
+    def get_action(self, state: State) -> ContinuousAction:
         perfect_action = self.actor_network.get_action(state)
         assert isinstance(perfect_action, ContinuousAction)
 
-        noise = self.compute_OU_noise(0, 0.15, self.sigma)
+        noise = self.compute_OU_noise()
         return perfect_action + noise
 
-    def compute_OU_noise(self, mu: float, theta: float, sigma: float) -> float:
+    def compute_OU_noise(self) -> float:
         # https://en.wikipedia.org/wiki/Ornstein%E2%80%93Uhlenbeck_process
-        return theta * (mu - sigma) + sigma * np.random.randn()
+        r = np.random.randn()
+        assert r != float("-inf")
+        delta_noise = self.theta * (self.mu - self.previous_noise) + self.sigma * r
+        assert delta_noise != float("-inf")
+        self.previous_noise += delta_noise
+        return self.previous_noise
 
     def compute_td_targets(self, experiences: TransitionBatch) -> TdTargetBatch:
         # td target is:
@@ -61,11 +74,11 @@ class DDPG:
         new_states = experiences.new_states
 
         # ask the actor network what actions it would choose
-        actions = self.actor_network.get_actions(new_states)
+        actions = self.target_actor_network.get_actions(new_states)
 
         # ask the critic network to criticize these actions
-        # Tensor[[QValue * 3], [QValue * 3], ...]
-        discounted_qvalues = self.critic_network.get_q_values(new_states, actions)
+        # Tensor[[QValue], [QValue], ...]
+        discounted_qvalues = self.target_critic_network.get_q_values(new_states, actions)
         discounted_qvalues[experiences.terminal] = 0
         discounted_qvalues *= self.gamma
 
@@ -76,11 +89,11 @@ class DDPG:
         td_targets = rewards + discounted_qvalues
         return TdTargetBatch(td_targets)
 
-    def train_critic_network(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
-        self.critic_network.train(experiences, td_targets)
+    def train_critic_network(self, experiences: TransitionBatch, td_targets: TdTargetBatch) -> float:
+        return self.critic_network.train(experiences, td_targets)
 
-    def train_actor_network(self, experiences: TransitionBatch):
-        self.actor_network.train(experiences)
+    def train_actor_network(self, experiences: TransitionBatch) -> float:
+        return self.actor_network.train(experiences)
 
     def update_target_networks(self):
         self.target_critic_network.polyak_update(self.critic_network, self.target_network_learning_rate)
@@ -91,7 +104,6 @@ class DDPG:
 
     def train(self):
         plot = LivePlot()
-        plot.create_figure()
 
         try:
             recent_rewards = collections.deque(maxlen=30)
@@ -114,10 +126,11 @@ class DDPG:
                         replay_batch = self.transition_buffer.get_batch(self.buffer_batch_size)
                         td_targets = self.compute_td_targets(replay_batch)
 
-                        self.train_critic_network(replay_batch, td_targets)
-                        self.train_actor_network(replay_batch)
+                        critic_loss = self.train_critic_network(replay_batch, td_targets)
+                        actor_loss = self.train_actor_network(replay_batch)
+                        plot.add_losses(actor_loss, critic_loss)
 
-                    self.update_target_networks()
+                        self.update_target_networks()
 
                     # process termination
                     if transition.end_of_episode():
@@ -138,10 +151,8 @@ class DDPG:
 
                 self.decay_noise(episode)
 
-                # episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 plot.add_episode(reward_sum, won, running_avg)
-                if episode % 5 == 0:
-                    plot.draw()
+                
 
         except KeyboardInterrupt:  # ctrl-c received while training
             pass  # stop training

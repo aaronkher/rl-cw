@@ -4,6 +4,7 @@ from typing import cast, TYPE_CHECKING, Any, Iterable
 
 import torch
 from torch import nn
+from environment.environment import DiscreteAction
 
 
 from network import NeuralNetwork
@@ -25,16 +26,16 @@ else:
 class DqnNetworkResult:
     tensor: torch.Tensor
 
-    def best_action(self) -> Action:
+    def best_action(self) -> DiscreteAction:
         argmax: torch.Tensor = self.tensor.argmax()  # this is a tensor with one item
-        best_action = argmax.item()
-        return cast(Action, best_action)
+        best_action = int(argmax.item())
+        return DiscreteAction(best_action)
 
     def best_action_q_value(self) -> float:
-        return self.tensor[self.best_action()].item()
+        return self.tensor[self.best_action().action].item()
 
-    def q_value_for_action(self, action: Action) -> float:
-        return self.tensor[action].item()
+    def q_value_for_action(self, action: DiscreteAction) -> float:
+        return self.tensor[action.action].item()
 
 
 class DqnNetworkResultBatch:
@@ -100,7 +101,7 @@ class DqnNetwork(NeuralNetwork):
 
         return DqnNetworkResultBatch(batch_output)
 
-    def get_best_action(self, state: State) -> Action:
+    def get_best_action(self, state: State) -> DiscreteAction:
         """Get the best action in a given state according to the neural network.
 
         Args:
@@ -113,7 +114,7 @@ class DqnNetwork(NeuralNetwork):
         neural_network_result = self.get_q_values(state)
         return neural_network_result.best_action()
 
-    def train(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
+    def train(self, experiences: TransitionBatch, td_targets: TdTargetBatch) -> float:
         # Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
         experience_states = experiences.old_states
@@ -135,4 +136,4 @@ class DqnNetwork(NeuralNetwork):
         td_targets_tensor = td_targets.tensor.unsqueeze(1)
         # y = actual (target network)
 
-        self.gradient_descent(actions_chosen_q_values, td_targets_tensor)
+        return self.gradient_descent(td_targets_tensor, actions_chosen_q_values)

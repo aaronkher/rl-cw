@@ -8,6 +8,7 @@ from typing import cast, TYPE_CHECKING, Any, Iterable
 
 import torch
 from torch import nn
+import numpy as np
 
 
 # prevent circular import
@@ -61,22 +62,17 @@ class NeuralNetwork(nn.Module):
     @staticmethod
     def tensorify(array: Iterable) -> torch.Tensor:
         """Create a PyTorch tensor, and make sure it's on the GPU if possible"""
+        if isinstance(array, list):
+            assert not isinstance(array[0], np.ndarray)
         return torch.tensor(array, device=NeuralNetwork.device())
 
-    def __init__(self, inputs: int, outputs: int, neurons: int = 256):
+    def __init__(self, inputs: int, outputs: int):
         super(NeuralNetwork, self).__init__()
 
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(inputs, neurons),
-            nn.ReLU(),
-            nn.Linear(neurons, neurons),
-            nn.ReLU(),
-            nn.Linear(neurons, neurons),
-            nn.ReLU(),
-            nn.Linear(neurons, outputs),
-        )
-
-        self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
+        self.inputs = inputs
+        self.outputs = outputs
+        self.stack = self.create_stack()
+        self.optim = self.create_optim()
 
         # move to gpu if possible
         self.to(NeuralNetwork.device())
@@ -125,6 +121,33 @@ class NeuralNetwork(nn.Module):
 
         print(f"loaded checkpoint from: {json_filename}")
 
+    def create_stack(self) -> nn.Sequential:
+        # default stack, subclasses can override this
+        neurons = 128
+        return nn.Sequential(
+            nn.Linear(self.inputs, neurons),
+            nn.ReLU(),
+            nn.Linear(neurons, neurons),
+            nn.ReLU(),
+            nn.Linear(neurons, self.outputs),
+        )
+
+    def create_optim(self) -> torch.optim.Optimizer:
+        # default optim, subclasses can override this
+        return torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
+
+    def reset_output_weights(self, range: float = 3e-3):
+        # first, find output layer (last nn.Linear in stack)
+        output_layer = None
+        for layer in reversed(self.stack):
+            if isinstance(layer, nn.Linear):
+                output_layer = cast(nn.Linear, layer)
+                break
+        assert output_layer is not None
+
+        output_layer.weight.data.uniform_(-range, range)
+        output_layer.bias.data.uniform_(-range, range)
+
     # do not call directly, call get_q_values() instead
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         """PyTorch internal function to perform forward pass.
@@ -137,9 +160,9 @@ class NeuralNetwork(nn.Module):
             torch.Tensor: a tensor of length 3 (one q-value for each action)
         """
 
-        return self.linear_relu_stack(state)
+        return self.stack(state)
 
-    def gradient_descent(self, expected: torch.Tensor, actual: torch.Tensor):
+    def gradient_descent(self, expected: torch.Tensor, actual: torch.Tensor) -> float:
         criterion = torch.nn.HuberLoss()
         loss = criterion(expected, actual)
 
@@ -150,6 +173,8 @@ class NeuralNetwork(nn.Module):
         nn.utils.clip_grad.clip_grad_value_(self.parameters(), 100.0)
 
         self.optim.step()  # gradient descent
+
+        return loss.item()
 
     def polyak_update(self, main: "NeuralNetwork", update_rate: float):
         main_net_state = main.state_dict()

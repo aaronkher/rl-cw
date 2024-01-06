@@ -9,7 +9,7 @@ import torch
 import numpy as np
 from dqn.dqn_network import DqnNetwork, DqnNetworkResult
 
-from environment.environment import Environment, Action, State, Transition
+from environment.environment import DiscreteAction, DiscreteActionEnv, Environment, State, Transition
 from network import NeuralNetwork
 from data_helper import LivePlot
 from replay_buffer import TransitionBatch, TransitionBuffer
@@ -24,7 +24,7 @@ class TdTargetBatch:
 class DQN:
     def __init__(
         self,
-        environment: Environment,
+        environment: DiscreteActionEnv,
         episode_count: int,
         timestep_count: int,
         gamma: float,
@@ -55,22 +55,19 @@ class DQN:
             self.policy_network.load_checkpoint(checkpoint_id)
             self.target_network.load_checkpoint(checkpoint_id)
 
-    def get_best_action(self, state: State) -> Action:
+    def get_best_action(self, state: State) -> DiscreteAction:
         return self.policy_network.get_best_action(state)
-    
+
     def get_action_probability_distribution(self, q_values: DqnNetworkResult) -> np.ndarray:
         # q_values: DqnNetworkResult
         # q_values.tensor: Tensor[QValue, QValue, ...]
         q_value_sum = torch.sum(q_values.tensor)
         return (q_values.tensor / q_value_sum).numpy()
-    
-    def get_action_from_probability_distribution(self, probability_distribution: np.ndarray) -> Action:
+
+    def get_action_from_probability_distribution(self, probability_distribution: np.ndarray) -> DiscreteAction:
         # probability_distribution: np.ndarray
         # probability_distribution: [0.1, 0.2, 0.7]
-        return np.random.choice(
-            self.environment.action_list,
-            p=probability_distribution
-        )
+        return np.random.choice(self.environment.action_list, p=probability_distribution)
 
     def get_action_using_epsilon_greedy(self, state: State):
         if np.random.uniform(0, 1) < self.epsilon:
@@ -82,7 +79,7 @@ class DQN:
             # return action
         return action
 
-    def execute_action(self, action: Action) -> Transition:
+    def execute_action(self, action: DiscreteAction) -> Transition:
         return self.environment.take_action(action)
 
     # using policy
@@ -90,7 +87,7 @@ class DQN:
         return self.policy_network.get_q_values(state)
 
     # using target network here to estimate q values
-    def get_q_value_for_action(self, state: State, action: Action, policy_net=False) -> float:
+    def get_q_value_for_action(self, state: State, action: DiscreteAction, policy_net=False) -> float:
         network = self.policy_network if policy_net else self.target_network
         neural_network_result = network.get_q_values(state)
         return neural_network_result.q_value_for_action(action)
@@ -161,13 +158,11 @@ class DQN:
 
         self.target_network.load_state_dict(target_net_state)
 
-    def backprop(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
-        self.policy_network.train(experiences, td_targets)
+    def backprop(self, experiences: TransitionBatch, td_targets: TdTargetBatch) -> float:
+        return self.policy_network.train(experiences, td_targets)
 
     def train(self):
-        episodes = []
         plot = LivePlot()
-        plot.create_figure()
 
         self.high_score = 0.0
         high_score_episode = 0
@@ -175,7 +170,6 @@ class DQN:
         start = datetime.now()
 
         try:
-            timestep_C_count = 0
             recent_rewards = collections.deque(maxlen=30)
             for episode in range(self.episode_count):
                 self.environment.reset()
@@ -194,15 +188,13 @@ class DQN:
                     reward_sum += transition.reward
                     self.transition_buffer.add(transition)
 
-                    # print(
-                    #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
-                    # )
-
                     if self.transition_buffer.size() > self.buffer_batch_size:
                         replay_batch = self.transition_buffer.get_batch(self.buffer_batch_size)
                         td_targets = self.compute_td_targets_batch(replay_batch)
 
-                        self.backprop(replay_batch, td_targets)
+                        loss = self.backprop(replay_batch, td_targets)
+                        plot.add_losses(loss)
+
                         self.update_experiences_td_errors(replay_batch)
 
                     self.update_target_network()
@@ -229,13 +221,15 @@ class DQN:
                 running_for = now - start
 
                 suffix = None  # if should create checkpoint, will be a str
-                if episode == self.episode_count-1: # create checkpoint after 10 episodes for startup
+                if episode == self.episode_count - 1:  # create checkpoint after 10 episodes for startup
                     suffix = " (startup checkpoint)"
-                if episode % 100 == 0 and episode != 0: # create checkpoint every 100 episodes
+                if episode % 100 == 0 and episode != 0:  # create checkpoint every 100 episodes
                     suffix = f" (ep {episode})"
-                if reward_sum > self.high_score + 0.01: 
+                if reward_sum > self.high_score + 0.01:
                     self.high_score = reward_sum
-                    if episode > high_score_episode + 15: # create checkpoint if high score has been beaten for 15 episodes
+                    if (
+                        episode > high_score_episode + 15
+                    ):  # create checkpoint if high score has been beaten for 15 episodes
                         high_score_episode = episode
                         suffix = f" (hs {self.high_score:.1f})"
 

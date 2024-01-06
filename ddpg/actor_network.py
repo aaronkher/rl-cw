@@ -1,8 +1,12 @@
-import torch
 from ddpg.critic_network import CriticNetwork
-from environment.environment import Action, Environment, State
+from environment.environment import Action, ContinuousAction, Environment, State
 from network import NeuralNetwork
 from replay_buffer import TransitionBatch
+
+
+import torch
+from torch import nn
+from torch.optim.optimizer import Optimizer as Optimizer
 
 
 class ActorNetwork(NeuralNetwork):
@@ -14,22 +18,38 @@ class ActorNetwork(NeuralNetwork):
         self.environment = env
         self.critic_network = critic_network
 
+        self.reset_output_weights()
+
+    def create_stack(self) -> nn.Sequential:
+        n = 128
+        return nn.Sequential(
+            nn.Linear(self.inputs, n),
+            nn.ReLU(),
+            nn.Linear(n, n),
+            nn.ReLU(),
+            nn.Linear(n, self.outputs),
+            nn.Tanh(),
+        )
+
+    def create_optim(self) -> Optimizer:
+        return torch.optim.Adam(self.parameters(), lr=3e-4)
+
     def create_copy(self) -> "ActorNetwork":
         copy = ActorNetwork(self.environment, self.critic_network)
         copy.copy_from(self)
         return copy
 
-    def get_action(self, state: State) -> Action:
+    def get_action(self, state: State) -> ContinuousAction:
         input = state.tensor
-        output = self(input)
-        action = output.detach().cpu().item()  # single item tensor -> float
+        output: torch.Tensor = self(input)
+        action = ContinuousAction(output)
         return action
 
     def get_actions(self, states: torch.Tensor) -> torch.Tensor:
         output = self(states)
         return output
 
-    def train(self, experiences: TransitionBatch):
+    def train(self, experiences: TransitionBatch) -> float:
         # run the states through the network to figure out what we
         # would have done
         states = experiences.old_states
@@ -38,15 +58,17 @@ class ActorNetwork(NeuralNetwork):
         # ask the critic network to criticize these actions we chose
         q_values = self.critic_network.get_q_values(states, actions)
 
-        self.gradient_ascent(q_values)
+        return self.gradient_ascent(q_values)
 
-    def gradient_ascent(self, q_values: torch.Tensor):
-        q_values = -q_values
+    def gradient_ascent(self, q_values: torch.Tensor) -> float:
+        # q_values = -q_values
 
         # take the mean
-        mean_qvalue = q_values.mean()
+        mean_qvalue = -q_values.mean()
 
         # backprop
         self.optim.zero_grad()
         mean_qvalue.backward()
         self.optim.step()
+
+        return mean_qvalue.item()

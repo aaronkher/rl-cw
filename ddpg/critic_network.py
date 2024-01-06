@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 import torch
+from torch.optim.optimizer import Optimizer as Optimizer
 from dqn.dqn_network import DqnNetwork, DqnNetworkResultBatch
 from environment.environment import Action, Environment, State
 from replay_buffer import TransitionBatch
@@ -27,24 +28,29 @@ class CriticNetwork(DqnNetwork):
 
         self.environment = env
 
+        self.reset_output_weights()
+
     def create_copy(self) -> "CriticNetwork":
         copy = CriticNetwork(self.environment)
         copy.copy_from(self)
         return copy
+    
+    def create_optim(self) -> Optimizer:
+        return torch.optim.Adam(self.parameters(), lr=1e-3)
 
     def get_q_values(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         input = torch.cat([state, action], dim=1)
         output = self(input)
         return output
 
-    def train(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
+    def train(self, experiences: TransitionBatch, td_targets: TdTargetBatch) -> float:
         # Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
         experience_states = experiences.old_states
 
         # Tensor[Action, Action, ...]
         # where Action is int
-        experience_actions = experiences.actions.squeeze(1)
+        experience_actions = experiences.actions
 
         # Tensor[[QValue], [QValue], ...]
         # where QValue is float
@@ -55,12 +61,14 @@ class CriticNetwork(DqnNetwork):
         td_targets_tensor = td_targets.tensor
         # y = actual (target network)
 
-        self.gradient_descent(q_values, td_targets_tensor)
+        return self.gradient_descent(q_values, td_targets_tensor)
 
-    def gradient_descent(self, q_values: torch.Tensor, td_targets: torch.Tensor):
+    def gradient_descent(self, q_values: torch.Tensor, td_targets: torch.Tensor) -> float:
         self.optim.zero_grad()
 
         loss = torch.nn.functional.mse_loss(q_values, td_targets)
         loss.backward()
 
         self.optim.step()
+
+        return loss.item()
