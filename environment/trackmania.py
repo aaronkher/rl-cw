@@ -50,17 +50,19 @@ class TrackmaniaEnv(Environment):
 
     @property
     def observation_space_length(self) -> int:
-        inputs = 0
-        for input in self.env.observation_space:
-            inputs += math.prod(input.shape)
-        return inputs
+        return 20
 
-    def tensorify_state(self, state: Iterable[np.ndarray], terminated: bool) -> State:
-        state_cat = np.concatenate([input.flatten() for input in state], dtype=np.float32)
+    def tensorify_state(self, state: tuple[np.ndarray], terminated: bool) -> State:
+        state = self.format_state(state)
 
         device = NeuralNetwork.device()
-        state_tensor = torch.from_numpy(state_cat).to(device)
-        return State(state_tensor, terminated)
+        state_tensor = torch.from_numpy(state).to(device)
+        return State(state_tensor, terminated)   
+    
+    def format_state(self, state:tuple[np.ndarray]) -> State:
+        speed, progress, lidars, prev_action1, prev_action2 = state
+        inputs = np.concatenate([speed, lidars[3].flatten()])
+        return inputs
 
     def take_action(self, raw_action: Action, gas: float, steer: float) -> Transition:
         assert 0 <= gas <= 1

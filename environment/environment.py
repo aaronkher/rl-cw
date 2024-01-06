@@ -27,7 +27,7 @@ class DiscreteAction(Action):
         return self.action
 
     def numpy(self) -> np.ndarray:
-        return np.asarray([self.action])
+        return np.asarray([self.action], dtype=np.int64)
 
 
 @dataclass
