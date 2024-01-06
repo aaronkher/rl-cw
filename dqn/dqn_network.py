@@ -78,6 +78,7 @@ class DqnNetwork(NeuralNetwork):
             nn.Linear(neurons, neurons),
             nn.ReLU(),
             nn.Linear(neurons, self.outputs),
+            nn.ReLU(),
         )
 
     def create_copy(self) -> "DqnNetwork":

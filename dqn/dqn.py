@@ -57,33 +57,23 @@ class DQN:
             self.policy_network.load_checkpoint(checkpoint_id, "policy_weights")
             self.target_network.load_checkpoint(checkpoint_id, "target_weights")
 
-    def get_best_action(self, state: State) -> DiscreteAction:
-        return self.policy_network.get_best_action(state)
+    def get_policy_action(self, state: State) -> DiscreteAction:
+        action_preferences = self.policy_network.get_q_values(state).tensor
+        action_preferences = (action_preferences + 1) / 2
 
-    def get_action_probability_distribution(self, q_values: DqnNetworkResult) -> np.ndarray:
-        # q_values: DqnNetworkResult
-        # q_values.tensor: Tensor[QValue, QValue, ...]
-        q_value_sum = torch.sum(q_values.tensor)
-        return (q_values.tensor / q_value_sum).numpy()
+        probabilities = action_preferences / torch.sum(action_preferences)
+        probabilities = probabilities.detach().cpu().numpy()
 
-    def get_action_from_probability_distribution(
-        self, probability_distribution: np.ndarray
-    ) -> DiscreteAction:
-        # probability_distribution: np.ndarray
-        # probability_distribution: [0.1, 0.2, 0.7]
-        possible_actions = [a.action for a in self.environment.action_list]
-        action = np.random.choice(possible_actions, p=probability_distribution)
+        action = np.random.choice(np.arange(len(probabilities)), p=probabilities)
         return DiscreteAction(action)
 
     def get_action_using_epsilon_greedy(self, state: State):
         if np.random.uniform(0, 1) < self.epsilon:
             # pick random action
-            action = self.environment.random_action()
+            return self.environment.random_action()
         else:
             # pick best action
-            action = self.get_best_action(state)
-            # return action
-        return action
+            return self.get_policy_action(state)
 
     def execute_action(self, action: DiscreteAction) -> Transition:
         return self.environment.take_action(action)
@@ -186,8 +176,6 @@ class DQN:
 
                 for timestep in range(self.timestep_count):
                     state = self.environment.current_state  # S_t
-                    # action_probabilities = self.get_action_probability_distribution(self.get_q_values(state))
-                    # action_from_policy = self.get_action_from_probability_distribution(action_probabilities)
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
 
                     transition = self.execute_action(action)

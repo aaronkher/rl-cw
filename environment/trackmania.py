@@ -32,7 +32,7 @@ class TrackmaniaEnv(Environment):
         self._current_state: State
         self.last_action_taken: Transition | None
 
-        self.timestep_penalty = 0.01
+        self.timestep_penalty = 0.00
 
         # hardcoded for track RL01 straight
         self.track_length = 22.0
