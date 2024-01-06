@@ -44,7 +44,6 @@ class CriticNetwork(DqnNetwork):
             nn.Linear(n, n),
             nn.ReLU(),
             nn.Linear(n, self.outputs),
-            nn.Tanh(),
         )
     
     def create_optim(self) -> Optimizer:
