@@ -74,11 +74,11 @@ class DDPG:
         new_states = experiences.new_states
 
         # ask the actor network what actions it would choose
-        actions = self.actor_network.get_actions(new_states)
+        actions = self.target_actor_network.get_actions(new_states)
 
         # ask the critic network to criticize these actions
-        # Tensor[[QValue * 3], [QValue * 3], ...]
-        discounted_qvalues = self.critic_network.get_q_values(new_states, actions)
+        # Tensor[[QValue], [QValue], ...]
+        discounted_qvalues = self.target_critic_network.get_q_values(new_states, actions)
         discounted_qvalues[experiences.terminal] = 0
         discounted_qvalues *= self.gamma
 
