@@ -263,8 +263,7 @@ class DQN:
                 self.decay_epsilon(episode)
 
                 plot.add_episode(reward_sum, won, running_avg)
-                if episode % 5 == 0:
-                    plot.draw()
+                self.environment.save_replay()
 
         except KeyboardInterrupt:
             pass
