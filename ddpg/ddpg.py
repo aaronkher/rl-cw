@@ -213,3 +213,5 @@ class DDPG:
             plot.draw()  # draw final results
         except KeyboardInterrupt:  # ctrl-c used to close final results
             pass  # we try/except/pass to not print KeyboardInterrupt error
+
+        plot.close()

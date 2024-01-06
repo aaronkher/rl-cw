@@ -64,6 +64,9 @@ class LivePlot:
         figure.canvas.draw()
         figure.canvas.flush_events()
 
+    def close(self):
+        plt.close()
+
 
 class PlotGraph:
     def __init__(
