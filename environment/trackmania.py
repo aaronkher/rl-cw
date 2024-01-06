@@ -6,10 +6,19 @@ import numpy as np
 import tmrl
 
 from network import NeuralNetwork
-from environment.environment import DiscreteAction, DiscreteActionEnv, State, Transition
+from environment.environment import (
+    Action,
+    DiscreteAction,
+    DiscreteActionEnv,
+    ContinuousAction,
+    ContinuousActionEnv,
+    Environment,
+    State,
+    Transition,
+)
 
 
-class TrackmaniaEnv(DiscreteActionEnv):
+class TrackmaniaEnv(Environment):
     def __init__(self):
         self.env = tmrl.get_environment()
 
@@ -31,11 +40,6 @@ class TrackmaniaEnv(DiscreteActionEnv):
         return transition.reward >= 100 - self.track_length - self.timestep_penalty - 0.01
 
     @property
-    def action_list(self) -> list[DiscreteAction]:
-        actions = [0, 1, 2, 3, 4, 5]
-        return [DiscreteAction(action) for action in actions]
-
-    @property
     def observation_space_length(self) -> int:
         inputs = 0
         for input in self.env.observation_space:
@@ -48,34 +52,20 @@ class TrackmaniaEnv(DiscreteActionEnv):
         device = NeuralNetwork.device()
         state_tensor = torch.from_numpy(state_cat).to(device)
         return State(state_tensor, terminated)
+    
+    def take_action(self, raw_action: Action, gas: float, steer: float) -> Transition:
+        # gas between 0 and 1
+        # steer between -1 and 1
+        formatted_action = np.array([gas, 0.0, steer])
 
-    def format_action(self, nn_action: DiscreteAction) -> np.ndarray:
-        assert isinstance(nn_action, DiscreteAction)
-        action = nn_action.action
-
-        # 0-2: gas 3-5: nothing
-        # 0/3: left 1/4: straight 2/5: right
-
-        accel = action // 3
-        direction = action % 3
-
-        gas = 1 if accel == 0 else 0
-        # brake = 1 if accel == 2 else 0
-        brake = 0
-        steer = direction - 1  # -1 is left, 0 is straight, 1 is right
-
-        return np.array([gas, brake, steer])
-
-    def take_action(self, action: DiscreteAction) -> Transition:
         old_state = self.current_state
-        formatted_action = self.format_action(action)
         (new_state_ndarray, _reward, terminated, truncated, _) = self.env.step(formatted_action)
 
         new_state = self.tensorify_state(new_state_ndarray, terminated)
         reward = float(_reward)
 
         # reward engineering
-        reward -= self.timestep_penalty  # adding penalty for each timestep
+        # reward -= self.timestep_penalty  # adding penalty for each timestep
         # if reward != 100 - self.timestep_penalty: # if we lost
         #     reward -= 50 # add penalty for losing
 
@@ -88,7 +78,7 @@ class TrackmaniaEnv(DiscreteActionEnv):
 
         self._current_state = new_state
         self.last_action_taken = Transition(
-            action,
+            raw_action,
             old_state,
             new_state,
             reward,
@@ -115,3 +105,49 @@ class TrackmaniaEnv(DiscreteActionEnv):
     def last_reward(self) -> float:
         assert self.last_action_taken is not None
         return self.last_action_taken.reward
+
+
+class KeyboardTrackmania(TrackmaniaEnv, DiscreteActionEnv):
+    @property
+    def action_list(self) -> list[DiscreteAction]:
+        actions = [0, 1, 2, 3, 4, 5]
+        return [DiscreteAction(action) for action in actions]
+    
+    def format_action(self, nn_action: DiscreteAction) -> tuple[float, float]:
+        assert isinstance(nn_action, DiscreteAction)
+        action = nn_action.action
+
+        # 0-2: gas 3-5: nothing
+        # 0/3: left 1/4: straight 2/5: right
+
+        accel = action // 3
+        direction = action % 3
+
+        gas = 1 if accel == 0 else 0
+        # brake = 1 if accel == 2 else 0
+        # brake = 0
+        steer = direction - 1  # -1 is left, 0 is straight, 1 is right
+
+        return gas, steer
+    
+    def take_action(self, action: DiscreteAction) -> Transition:
+        gas, steer = self.format_action(action)
+        return super().take_action(action, gas, steer)
+
+class ControllerTrackmania(TrackmaniaEnv, ContinuousActionEnv):
+    @property
+    def action_count(self) -> int:
+        return 2  # gas and steer
+    
+    def take_action(self, action: ContinuousAction) -> Transition:
+        gas, steer = action.action
+        return super().take_action(action, float(gas), float(steer))
+    
+    def random_action(self) -> ContinuousAction:
+        # torch.rand(1) returns float in [0, 1]
+        gas = torch.rand(1)
+        steer = torch.rand(1) * 2 - 1
+        tensor = NeuralNetwork.tensorify([gas, steer])
+        return ContinuousAction(tensor)
+    
+    

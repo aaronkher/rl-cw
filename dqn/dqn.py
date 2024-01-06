@@ -51,6 +51,8 @@ class DQN:
         self.policy_network = DqnNetwork(self.environment)  # q1 / θ
         self.target_network = self.policy_network.create_copy()  # q2 / θ-
 
+        self.latest_checkpoint = None
+        self.checkpoint_id = checkpoint_id
         if checkpoint_id is not None:
             self.policy_network.load_checkpoint(checkpoint_id)
             self.target_network.load_checkpoint(checkpoint_id)
@@ -243,12 +245,13 @@ class DQN:
                         epsilon=self.epsilon,
                         running_since=start,
                         running_for=running_for,
+                        start_checkpoint=self.checkpoint_id,
+                        previous_checkpoint=self.latest_checkpoint,
                         suffix=suffix,
                     )
 
                 self.decay_epsilon(episode)
 
-                # episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 plot.add_episode(reward_sum, won, running_avg)
                 if episode % 5 == 0:
                     plot.draw()

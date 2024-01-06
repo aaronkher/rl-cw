@@ -62,8 +62,6 @@ class NeuralNetwork(nn.Module):
     @staticmethod
     def tensorify(array: Iterable) -> torch.Tensor:
         """Create a PyTorch tensor, and make sure it's on the GPU if possible"""
-        if isinstance(array, list):
-            assert not isinstance(array[0], np.ndarray)
         return torch.tensor(array, device=NeuralNetwork.device())
 
     def __init__(self, inputs: int, outputs: int):
@@ -83,19 +81,23 @@ class NeuralNetwork(nn.Module):
     def copy_from(self, other: "NeuralNetwork"):
         self.load_state_dict(other.state_dict())
 
-    def save_checkpoint(self, **kwargs) -> str:
+    def save_checkpoint(
+        self,
+        suffix: str | None = None,
+        filename: str = "weights",
+        **kwargs,
+    ) -> str:
         now = datetime.now()
 
         foldername = now.strftime("%Y-%m-%d %H.%M")
-        if kwargs.get("suffix"):
-            foldername += f" {kwargs.get('suffix')}"
-            del kwargs["suffix"]
+        if suffix is not None:
+            foldername += f" {suffix}"
 
         folder = Path(__file__).parent / "checkpoints" / foldername
         os.makedirs(folder, exist_ok=True)
 
-        json_filename = Path(__file__).parent / "checkpoints" / foldername / "weights.json"
-        txt_filename = Path(__file__).parent / "checkpoints" / foldername / "weights.txt"
+        json_filename = Path(__file__).parent / "checkpoints" / foldername / f"{filename}.json"
+        txt_filename = Path(__file__).parent / "checkpoints" / foldername / "info.txt"
 
         with open(json_filename, "w") as json_file:
             json.dump(self.state_dict(), json_file, cls=TorchJSONEncoder)
@@ -112,9 +114,9 @@ class NeuralNetwork(nn.Module):
 
         return checkpoint_id
 
-    def load_checkpoint(self, b64_id: str):
+    def load_checkpoint(self, b64_id: str, filename: str = "weights"):
         foldername = base64.b64decode(b64_id.encode("utf-8")).decode("utf-8")
-        json_filename = Path(__file__).parent / "checkpoints" / foldername / "weights.json"
+        json_filename = Path(__file__).parent / "checkpoints" / foldername / f"{filename}.json"
 
         with open(json_filename, "r") as json_file:
             self.load_state_dict(json.load(json_file, cls=TorchJSONDecoder))

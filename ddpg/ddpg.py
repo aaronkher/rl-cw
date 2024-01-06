@@ -1,7 +1,6 @@
 import collections
 from dataclasses import dataclass
-import random
-import math
+from datetime import datetime
 
 import numpy as np
 import torch
@@ -30,6 +29,7 @@ class DDPG:
         mu: float = 0.0,
         theta: float = 0.15,
         sigma: float = 0.2,
+        checkpoint_id: str | None = None,
     ):
         self.episode_count = episode_count
         self.gamma = gamma
@@ -44,6 +44,15 @@ class DDPG:
 
         self.actor_network = ActorNetwork(self.environment, self.critic_network)
         self.target_actor_network = self.actor_network.create_copy()
+
+        self.latest_checkpoint = None
+        self.checkpoint_id = checkpoint_id
+        if checkpoint_id is not None:
+            self.critic_network.load_checkpoint(checkpoint_id, filename="critic_weights")
+            self.target_critic_network.load_checkpoint(checkpoint_id, filename="target_critic_weights")
+
+            self.actor_network.load_checkpoint(checkpoint_id, filename="actor_weights")
+            self.target_actor_network.load_checkpoint(checkpoint_id, filename="target_actor_weights")
 
         self.mu = mu
         self.theta = theta
@@ -105,6 +114,11 @@ class DDPG:
     def train(self):
         plot = LivePlot()
 
+        self.high_score = 0.0
+        high_score_episode = 0
+
+        start = datetime.now()
+
         try:
             recent_rewards = collections.deque(maxlen=30)
             for episode in range(self.episode_count):
@@ -149,10 +163,48 @@ class DDPG:
                     f" | reward {reward_sum: <7.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards)})"
                 )
 
+                now = datetime.now()
+                running_for = now - start
+
+                suffix = None  # if should create checkpoint, will be a str
+                if episode == self.episode_count - 1:  # create checkpoint after 10 episodes for startup
+                    suffix = " (startup checkpoint)"
+                if episode % 100 == 0 and episode != 0:  # create checkpoint every 100 episodes
+                    suffix = f" (ep {episode})"
+                if reward_sum > self.high_score + 0.01:
+                    self.high_score = reward_sum
+                    if (
+                        episode > high_score_episode + 15
+                    ):  # create checkpoint if high score has been beaten for 15 episodes
+                        high_score_episode = episode
+                        suffix = f" (hs {self.high_score:.1f})"
+
+                if suffix is not None:
+                    checkpoint_info = {
+                        "episode_number": episode,
+                        "reward": reward_sum,
+                        "won": won,
+                        "running_since": start,
+                        "running_for": running_for,
+                        "start_checkpoint": self.checkpoint_id,
+                        "previous_checkpoint": self.latest_checkpoint,
+                        "suffix": suffix,
+                    }
+                    
+                    self.latest_checkpoint = self.critic_network.save_checkpoint(
+                        **checkpoint_info, filename="critic_weights"
+                    )
+                    self.target_critic_network.save_checkpoint(
+                        **checkpoint_info, filename="target_critic_weights"
+                    )
+                    self.actor_network.save_checkpoint(**checkpoint_info, filename="actor_weights")
+                    self.target_actor_network.save_checkpoint(
+                        **checkpoint_info, filename="target_actor_weights"
+                    )
+
                 self.decay_noise(episode)
 
                 plot.add_episode(reward_sum, won, running_avg)
-                
 
         except KeyboardInterrupt:  # ctrl-c received while training
             pass  # stop training
