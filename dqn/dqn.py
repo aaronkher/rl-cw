@@ -263,3 +263,5 @@ class DQN:
             plot.draw()
         except KeyboardInterrupt:
             pass  # ctrl-c to close plot
+
+        plot.close()
