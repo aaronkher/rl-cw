@@ -195,7 +195,7 @@ class DQN:
                         td_targets = self.compute_td_targets_batch(replay_batch)
 
                         loss = self.backprop(replay_batch, td_targets)
-                        plot.add_losses(loss)
+                        plot.add_losses(loss, can_redraw=False)
 
                         self.update_experiences_td_errors(replay_batch)
 

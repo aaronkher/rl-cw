@@ -128,7 +128,7 @@ class DDPG:
 
                         critic_loss = self.train_critic_network(replay_batch, td_targets)
                         actor_loss = self.train_actor_network(replay_batch)
-                        plot.add_losses(actor_loss, critic_loss)
+                        plot.add_losses(actor_loss, critic_loss, can_redraw=False)
 
                         self.update_target_networks()
 
