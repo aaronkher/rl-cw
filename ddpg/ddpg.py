@@ -89,11 +89,11 @@ class DDPG:
         td_targets = rewards + discounted_qvalues
         return TdTargetBatch(td_targets)
 
-    def train_critic_network(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
-        self.critic_network.train(experiences, td_targets)
+    def train_critic_network(self, experiences: TransitionBatch, td_targets: TdTargetBatch) -> float:
+        return self.critic_network.train(experiences, td_targets)
 
-    def train_actor_network(self, experiences: TransitionBatch):
-        self.actor_network.train(experiences)
+    def train_actor_network(self, experiences: TransitionBatch) -> float:
+        return self.actor_network.train(experiences)
 
     def update_target_networks(self):
         self.target_critic_network.polyak_update(self.critic_network, self.target_network_learning_rate)
@@ -104,7 +104,6 @@ class DDPG:
 
     def train(self):
         plot = LivePlot()
-        plot.create_figure()
 
         try:
             recent_rewards = collections.deque(maxlen=30)
@@ -127,8 +126,9 @@ class DDPG:
                         replay_batch = self.transition_buffer.get_batch(self.buffer_batch_size)
                         td_targets = self.compute_td_targets(replay_batch)
 
-                        self.train_critic_network(replay_batch, td_targets)
-                        self.train_actor_network(replay_batch)
+                        critic_loss = self.train_critic_network(replay_batch, td_targets)
+                        actor_loss = self.train_actor_network(replay_batch)
+                        plot.add_losses(actor_loss, critic_loss)
 
                         self.update_target_networks()
 
@@ -151,10 +151,8 @@ class DDPG:
 
                 self.decay_noise(episode)
 
-                # episodes.append(EpisodeData(episode, reward_sum, timestep, won))
                 plot.add_episode(reward_sum, won, running_avg)
-                if episode % 5 == 0:
-                    plot.draw()
+                
 
         except KeyboardInterrupt:  # ctrl-c received while training
             pass  # stop training

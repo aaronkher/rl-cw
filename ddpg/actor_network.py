@@ -49,7 +49,7 @@ class ActorNetwork(NeuralNetwork):
         output = self(states)
         return output
 
-    def train(self, experiences: TransitionBatch):
+    def train(self, experiences: TransitionBatch) -> float:
         # run the states through the network to figure out what we
         # would have done
         states = experiences.old_states
@@ -58,9 +58,9 @@ class ActorNetwork(NeuralNetwork):
         # ask the critic network to criticize these actions we chose
         q_values = self.critic_network.get_q_values(states, actions)
 
-        self.gradient_ascent(q_values)
+        return self.gradient_ascent(q_values)
 
-    def gradient_ascent(self, q_values: torch.Tensor):
+    def gradient_ascent(self, q_values: torch.Tensor) -> float:
         # q_values = -q_values
 
         # take the mean
@@ -70,3 +70,5 @@ class ActorNetwork(NeuralNetwork):
         self.optim.zero_grad()
         mean_qvalue.backward()
         self.optim.step()
+
+        return mean_qvalue.item()

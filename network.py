@@ -94,7 +94,7 @@ class NeuralNetwork(nn.Module):
 
         return self.stack(state)
 
-    def gradient_descent(self, expected: torch.Tensor, actual: torch.Tensor):
+    def gradient_descent(self, expected: torch.Tensor, actual: torch.Tensor) -> float:
         criterion = torch.nn.HuberLoss()
         loss = criterion(expected, actual)
 
@@ -105,6 +105,8 @@ class NeuralNetwork(nn.Module):
         nn.utils.clip_grad.clip_grad_value_(self.parameters(), 100.0)
 
         self.optim.step()  # gradient descent
+
+        return loss.item()
 
     def polyak_update(self, main: "NeuralNetwork", update_rate: float):
         main_net_state = main.state_dict()

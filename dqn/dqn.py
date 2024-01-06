@@ -140,16 +140,13 @@ class DQN:
 
         self.target_network.load_state_dict(target_net_state)
 
-    def backprop(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
-        self.policy_network.train(experiences, td_targets)
+    def backprop(self, experiences: TransitionBatch, td_targets: TdTargetBatch) -> float:
+        return self.policy_network.train(experiences, td_targets)
 
     def train(self):
-        episodes = []
         plot = LivePlot()
-        plot.create_figure()
 
         try:
-            timestep_C_count = 0
             recent_rewards = collections.deque(maxlen=30)
             for episode in range(self.episode_count):
                 self.environment.reset()
@@ -166,15 +163,13 @@ class DQN:
                     reward_sum += transition.reward
                     self.transition_buffer.add(transition)
 
-                    # print(
-                    #     f"Episode {episode} Timestep {timestep} | Action {action}, Reward {action_result.reward:.0f}, Total Reward {reward_sum:.0f}"
-                    # )
-
                     if self.transition_buffer.size() > self.buffer_batch_size:
                         replay_batch = self.transition_buffer.get_batch(self.buffer_batch_size)
                         td_targets = self.compute_td_targets_batch(replay_batch)
 
-                        self.backprop(replay_batch, td_targets)
+                        loss = self.backprop(replay_batch, td_targets)
+                        plot.add_losses(loss)
+
                         self.update_experiences_td_errors(replay_batch)
 
                     self.update_target_network()

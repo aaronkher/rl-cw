@@ -43,7 +43,7 @@ class CriticNetwork(DqnNetwork):
         output = self(input)
         return output
 
-    def train(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
+    def train(self, experiences: TransitionBatch, td_targets: TdTargetBatch) -> float:
         # Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
         experience_states = experiences.old_states
@@ -61,12 +61,14 @@ class CriticNetwork(DqnNetwork):
         td_targets_tensor = td_targets.tensor
         # y = actual (target network)
 
-        self.gradient_descent(q_values, td_targets_tensor)
+        return self.gradient_descent(q_values, td_targets_tensor)
 
-    def gradient_descent(self, q_values: torch.Tensor, td_targets: torch.Tensor):
+    def gradient_descent(self, q_values: torch.Tensor, td_targets: torch.Tensor) -> float:
         self.optim.zero_grad()
 
         loss = torch.nn.functional.mse_loss(q_values, td_targets)
         loss.backward()
 
         self.optim.step()
+
+        return loss.item()

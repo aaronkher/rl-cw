@@ -114,7 +114,7 @@ class DqnNetwork(NeuralNetwork):
         neural_network_result = self.get_q_values(state)
         return neural_network_result.best_action()
 
-    def train(self, experiences: TransitionBatch, td_targets: TdTargetBatch):
+    def train(self, experiences: TransitionBatch, td_targets: TdTargetBatch) -> float:
         # Tensor[State, State, ...]
         # where State is Tensor[position, velocity]
         experience_states = experiences.old_states
@@ -136,4 +136,4 @@ class DqnNetwork(NeuralNetwork):
         td_targets_tensor = td_targets.tensor.unsqueeze(1)
         # y = actual (target network)
 
-        self.gradient_descent(td_targets_tensor, actions_chosen_q_values)
+        return self.gradient_descent(td_targets_tensor, actions_chosen_q_values)
