@@ -83,8 +83,8 @@ class NeuralNetwork(nn.Module):
 
     def save_checkpoint(
         self,
+        filename: str,
         suffix: str | None = None,
-        filename: str = "weights",
         **kwargs,
     ) -> tuple[Path, str]:
         now = datetime.now()
@@ -114,7 +114,7 @@ class NeuralNetwork(nn.Module):
 
         return folder, checkpoint_id
 
-    def load_checkpoint(self, b64_id: str, filename: str = "weights"):
+    def load_checkpoint(self, b64_id: str, filename: str):
         foldername = base64.b64decode(b64_id.encode("utf-8")).decode("utf-8")
         json_filename = Path(__file__).parent / "checkpoints" / foldername / f"{filename}.json"
 

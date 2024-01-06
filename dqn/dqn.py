@@ -54,8 +54,8 @@ class DQN:
         self.latest_checkpoint = None
         self.checkpoint_id = checkpoint_id
         if checkpoint_id is not None:
-            self.policy_network.load_checkpoint(checkpoint_id)
-            self.target_network.load_checkpoint(checkpoint_id)
+            self.policy_network.load_checkpoint(checkpoint_id, "policy_weights")
+            self.target_network.load_checkpoint(checkpoint_id, "target_weights")
 
     def get_best_action(self, state: State) -> DiscreteAction:
         return self.policy_network.get_best_action(state)
@@ -241,17 +241,21 @@ class DQN:
 
                 should_save_checkpoint = suffix is not None
                 if should_save_checkpoint:
+                    checkpoint_info = {
+                        "episode_number": episode,
+                        "reward": reward_sum,
+                        "won": won,
+                        "epsilon": self.epsilon,
+                        "running_since": start,
+                        "running_for": running_for,
+                        "start_checkpoint": self.checkpoint_id,
+                        "previous_checkpoint": self.latest_checkpoint,
+                        "suffix": suffix,
+                    }
                     checkpoint_folder, self.latest_checkpoint = self.policy_network.save_checkpoint(
-                        episode_number=episode,
-                        reward=reward_sum,
-                        won=won,
-                        epsilon=self.epsilon,
-                        running_since=start,
-                        running_for=running_for,
-                        start_checkpoint=self.checkpoint_id,
-                        previous_checkpoint=self.latest_checkpoint,
-                        suffix=suffix,
+                        **checkpoint_info, filename="policy_weights"
                     )
+                    self.target_network.save_checkpoint(**checkpoint_info, filename="target_weights")
 
                     plot.save_img(checkpoint_folder / "plot.png")
                     plot.save_csv(checkpoint_folder / "data.csv")
