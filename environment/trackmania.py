@@ -6,7 +6,7 @@ import numpy as np
 import tmrl
 
 from network import NeuralNetwork
-from environment.environment import Action, DiscreteAction, DiscreteActionEnv, State, Transition
+from environment.environment import DiscreteAction, DiscreteActionEnv, State, Transition
 
 
 class TrackmaniaEnv(DiscreteActionEnv):
@@ -17,7 +17,7 @@ class TrackmaniaEnv(DiscreteActionEnv):
         self._current_state: State
         self.last_action_taken: Transition | None
 
-        self.timestep_penalty = 0.
+        self.timestep_penalty = 0.0
 
         # hardcoded for track RL01 straight
         self.track_length = 22.0
@@ -29,8 +29,11 @@ class TrackmaniaEnv(DiscreteActionEnv):
         # return abs(transition.reward - reward_if_won) < 0.001
 
         return transition.reward >= 100 - self.track_length - self.timestep_penalty - 0.01
-    def action_list(self) -> list[Action]:
-        return [0, 1, 2, 3, 4, 5]
+
+    @property
+    def action_list(self) -> list[DiscreteAction]:
+        actions = [0, 1, 2, 3, 4, 5]
+        return [DiscreteAction(action) for action in actions]
 
     @property
     def observation_space_length(self) -> int:
@@ -46,14 +49,15 @@ class TrackmaniaEnv(DiscreteActionEnv):
         state_tensor = torch.from_numpy(state_cat).to(device)
         return State(state_tensor, terminated)
 
-    def format_action(self, nn_action: Action) -> np.ndarray:
+    def format_action(self, nn_action: DiscreteAction) -> np.ndarray:
         assert isinstance(nn_action, DiscreteAction)
+        action = nn_action.action
 
         # 0-2: gas 3-5: nothing
         # 0/3: left 1/4: straight 2/5: right
 
-        accel = nn_action // 3
-        direction = nn_action % 3
+        accel = action // 3
+        direction = action % 3
 
         gas = 1 if accel == 0 else 0
         # brake = 1 if accel == 2 else 0
@@ -62,7 +66,7 @@ class TrackmaniaEnv(DiscreteActionEnv):
 
         return np.array([gas, brake, steer])
 
-    def take_action(self, action: Action) -> Transition:
+    def take_action(self, action: DiscreteAction) -> Transition:
         old_state = self.current_state
         formatted_action = self.format_action(action)
         (new_state_ndarray, _reward, terminated, truncated, _) = self.env.step(formatted_action)

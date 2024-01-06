@@ -67,7 +67,9 @@ class DQN:
     def get_action_from_probability_distribution(self, probability_distribution: np.ndarray) -> DiscreteAction:
         # probability_distribution: np.ndarray
         # probability_distribution: [0.1, 0.2, 0.7]
-        return np.random.choice(self.environment.action_list, p=probability_distribution)
+        possible_actions = [a.action for a in self.environment.action_list]
+        action = np.random.choice(possible_actions, p=probability_distribution)
+        return DiscreteAction(action)
 
     def get_action_using_epsilon_greedy(self, state: State):
         if np.random.uniform(0, 1) < self.epsilon:
