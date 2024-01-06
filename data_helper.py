@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -55,14 +56,31 @@ class LivePlot:
         # )
 
     def draw(self):
-        figure = plt.gcf()
-
         self.rewards.subplot(131)
         self.actor_loss.subplot(132)
         self.critic_loss.subplot(133)
 
-        figure.canvas.draw()
-        figure.canvas.flush_events()
+        self.figure.canvas.draw()
+        self.figure.canvas.flush_events()
+
+    def save_img(self, filename: Path):
+        self.figure.savefig(filename)
+
+    def save_csv(self, filename: Path):
+        with open(filename, "w") as csv_file:
+            csv_file.write("episode,reward,won,actor_loss,critic_loss\n")
+
+            rewards = self.rewards.data
+            episodes = range(len(rewards))
+            wins = self.rewards.wins
+            actor_losses = self.actor_loss.data
+            critic_losses = self.critic_loss.data or (0 for _ in range(len(rewards)))
+            # because critic losses is [] for DQN
+
+            for episode, reward, won, actor_loss, critic_loss in zip(
+                episodes, rewards, wins, actor_losses, critic_losses
+            ):
+                csv_file.write(f"{episode},{reward},{int(won)},{actor_loss},{critic_loss}\n")
 
     def close(self):
         plt.close()
@@ -89,6 +107,10 @@ class PlotGraph:
         self.data.append(data_point)
         self.running_avgs.append(running_avg or self.calculate_running_avg())
 
+    def calculate_running_avg(self, last: int = 30):
+        data_to_avg = self.data[-last:]
+        return sum(data_to_avg) / len(data_to_avg)
+
     def subplot(self, loc: int):
         axes = plt.subplot(loc)
 
@@ -103,14 +125,12 @@ class PlotGraph:
         plt.plot(self.running_avgs, color=self.avg_color)
         return axes
 
-    def calculate_running_avg(self, last: int = 30):
-        data_to_avg = self.data[-last:]
-        return sum(data_to_avg) / len(data_to_avg)
-
 
 class RewardsGraph(PlotGraph):
     def __init__(self, *args, **kwargs):
         super().__init__(xlabel="Episode", ylabel="Total reward", *args, **kwargs)
+
+        self.wins: list[bool] = []
 
         self.won_episodes_numbers: list[int] = []
         self.won_episode_rewards: list[float] = []
@@ -122,6 +142,7 @@ class RewardsGraph(PlotGraph):
         episode_number = len(self.data)
         super().add_data_point(data_point, running_avg)
 
+        self.wins.append(won)
         if won:
             self.won_episodes_numbers.append(episode_number)
             self.won_episode_rewards.append(data_point)

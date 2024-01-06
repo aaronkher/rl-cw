@@ -86,7 +86,7 @@ class NeuralNetwork(nn.Module):
         suffix: str | None = None,
         filename: str = "weights",
         **kwargs,
-    ) -> str:
+    ) -> tuple[Path, str]:
         now = datetime.now()
 
         foldername = now.strftime("%Y-%m-%d %H.%M")
@@ -112,7 +112,7 @@ class NeuralNetwork(nn.Module):
 
         txt_filename.write_text(info)
 
-        return checkpoint_id
+        return folder, checkpoint_id
 
     def load_checkpoint(self, b64_id: str, filename: str = "weights"):
         foldername = base64.b64decode(b64_id.encode("utf-8")).decode("utf-8")

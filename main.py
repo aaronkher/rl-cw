@@ -57,7 +57,7 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         print("No checkpoint id provided, training new agent\n")
-        high_score = 0
+        high_score = float("-inf")
         best_agent: DQN | DDPG | None = None
 
         for i in range(9):

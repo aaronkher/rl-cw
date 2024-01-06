@@ -179,7 +179,8 @@ class DDPG:
                         high_score_episode = episode
                         suffix = f" (hs {self.high_score:.1f})"
 
-                if suffix is not None:
+                should_save_checkpoint = suffix is not None
+                if should_save_checkpoint:
                     checkpoint_info = {
                         "episode_number": episode,
                         "reward": reward_sum,
@@ -190,17 +191,18 @@ class DDPG:
                         "previous_checkpoint": self.latest_checkpoint,
                         "suffix": suffix,
                     }
-                    
-                    self.latest_checkpoint = self.critic_network.save_checkpoint(
-                        **checkpoint_info, filename="critic_weights"
-                    )
+
+                    self.critic_network.save_checkpoint(**checkpoint_info, filename="critic_weights")
                     self.target_critic_network.save_checkpoint(
                         **checkpoint_info, filename="target_critic_weights"
                     )
                     self.actor_network.save_checkpoint(**checkpoint_info, filename="actor_weights")
-                    self.target_actor_network.save_checkpoint(
+                    checkpoint_folder, self.latest_checkpoint = self.target_actor_network.save_checkpoint(
                         **checkpoint_info, filename="target_actor_weights"
                     )
+
+                    plot.save_img(checkpoint_folder / "plot.png")
+                    plot.save_csv(checkpoint_folder / "data.csv")
 
                 self.decay_noise(episode)
 

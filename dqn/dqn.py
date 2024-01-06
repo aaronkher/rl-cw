@@ -66,7 +66,9 @@ class DQN:
         q_value_sum = torch.sum(q_values.tensor)
         return (q_values.tensor / q_value_sum).numpy()
 
-    def get_action_from_probability_distribution(self, probability_distribution: np.ndarray) -> DiscreteAction:
+    def get_action_from_probability_distribution(
+        self, probability_distribution: np.ndarray
+    ) -> DiscreteAction:
         # probability_distribution: np.ndarray
         # probability_distribution: [0.1, 0.2, 0.7]
         possible_actions = [a.action for a in self.environment.action_list]
@@ -237,8 +239,9 @@ class DQN:
                         high_score_episode = episode
                         suffix = f" (hs {self.high_score:.1f})"
 
-                if suffix is not None:
-                    self.latest_checkpoint = self.policy_network.save_checkpoint(
+                should_save_checkpoint = suffix is not None
+                if should_save_checkpoint:
+                    checkpoint_folder, self.latest_checkpoint = self.policy_network.save_checkpoint(
                         episode_number=episode,
                         reward=reward_sum,
                         won=won,
@@ -249,6 +252,9 @@ class DQN:
                         previous_checkpoint=self.latest_checkpoint,
                         suffix=suffix,
                     )
+
+                    plot.save_img(checkpoint_folder / "plot.png")
+                    plot.save_csv(checkpoint_folder / "data.csv")
 
                 self.decay_epsilon(episode)
 
