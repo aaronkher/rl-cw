@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("checkpoint_id", type=str, help="The checkpoint id to load from", nargs="?")
-    parser.add_argument("--epsilon_start", type=float, help="The epsilon start value")
+    parser.add_argument("--epsilon-start", type=float, help="The epsilon start value")
     parser.add_argument("--dqn", action="store_true")
     parser.add_argument("--ddpg", action="store_true")
     return parser.parse_args()
