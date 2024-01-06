@@ -1,7 +1,9 @@
 import collections
 from dataclasses import dataclass
-import numpy as np
+import random
+import math
 
+import numpy as np
 import torch
 import numpy as np
 from data_helper import LivePlot
@@ -25,13 +27,14 @@ class DDPG:
         gamma: float,
         buffer_batch_size: int,
         target_network_learning_rate: float,
-        sigma: float = 0.15,
+        mu: float = 0.0,
+        theta: float = 0.15,
+        sigma: float = 0.2,
     ):
         self.episode_count = episode_count
         self.gamma = gamma
         self.buffer_batch_size = buffer_batch_size
         self.target_network_learning_rate = target_network_learning_rate
-        self.sigma = sigma
 
         self.environment = environment
         self.transition_buffer = TransitionBuffer(omega=0.5)
@@ -42,16 +45,26 @@ class DDPG:
         self.actor_network = ActorNetwork(self.environment, self.critic_network)
         self.target_actor_network = self.actor_network.create_copy()
 
+        self.mu = mu
+        self.theta = theta
+        self.sigma = sigma
+        self.previous_noise = mu
+
     def get_action(self, state: State) -> ContinuousAction:
         perfect_action = self.actor_network.get_action(state)
         assert isinstance(perfect_action, ContinuousAction)
 
-        noise = self.compute_OU_noise(0, 0.15, self.sigma)
+        noise = self.compute_OU_noise()
         return perfect_action + noise
 
-    def compute_OU_noise(self, mu: float, theta: float, sigma: float) -> float:
+    def compute_OU_noise(self) -> float:
         # https://en.wikipedia.org/wiki/Ornstein%E2%80%93Uhlenbeck_process
-        return theta * (mu - sigma) + sigma * np.random.randn()
+        r = np.random.randn()
+        assert r != float("-inf")
+        delta_noise = self.theta * (self.mu - self.previous_noise) + self.sigma * r
+        assert delta_noise != float("-inf")
+        self.previous_noise += delta_noise
+        return self.previous_noise
 
     def compute_td_targets(self, experiences: TransitionBatch) -> TdTargetBatch:
         # td target is:
@@ -117,7 +130,7 @@ class DDPG:
                         self.train_critic_network(replay_batch, td_targets)
                         self.train_actor_network(replay_batch)
 
-                    self.update_target_networks()
+                        self.update_target_networks()
 
                     # process termination
                     if transition.end_of_episode():

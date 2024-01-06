@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 import torch
+from torch.optim.optimizer import Optimizer as Optimizer
 from dqn.dqn_network import DqnNetwork, DqnNetworkResultBatch
 from environment.environment import Action, Environment, State
 from replay_buffer import TransitionBatch
@@ -27,10 +28,15 @@ class CriticNetwork(DqnNetwork):
 
         self.environment = env
 
+        self.reset_output_weights()
+
     def create_copy(self) -> "CriticNetwork":
         copy = CriticNetwork(self.environment)
         copy.copy_from(self)
         return copy
+    
+    def create_optim(self) -> Optimizer:
+        return torch.optim.Adam(self.parameters(), lr=1e-3)
 
     def get_q_values(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         input = torch.cat([state, action], dim=1)
@@ -44,7 +50,7 @@ class CriticNetwork(DqnNetwork):
 
         # Tensor[Action, Action, ...]
         # where Action is int
-        experience_actions = experiences.actions.unsqueeze(1)
+        experience_actions = experiences.actions
 
         # Tensor[[QValue], [QValue], ...]
         # where QValue is float

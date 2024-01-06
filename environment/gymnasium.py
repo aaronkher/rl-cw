@@ -1,4 +1,7 @@
 from abc import abstractmethod
+import math
+
+import numpy as np
 import gymnasium
 import torch
 from environment.environment import (
@@ -95,21 +98,53 @@ class CartpoleEnv(DiscreteGymnasiumEnv):
         return not transition.truncated
 
 
-class PendulumEnv(GymnasiumEnv, ContinuousActionEnv):
+class ContinuousGymnasiumEnv(GymnasiumEnv, ContinuousActionEnv):
+    def __init__(self, env_name: str, render: bool = False):
+        super().__init__(env_name, render)
+
+        device = NeuralNetwork.device()
+        self.low = torch.tensor(self.env.action_space.low, device=device)  # type: ignore
+        self.high = torch.tensor(self.env.action_space.high, device=device)  # type: ignore
+
+    @property
+    def action_count(self) -> int:
+        assert self.env.action_space.shape is not None
+        return math.prod(self.env.action_space.shape)
+
+    def interpolate_action(self, action: torch.Tensor) -> ContinuousAction:
+        # assume the input is in the range [0, 1]
+        # interpolate it to [low, high]
+        action *= self.high - self.low  # [0, high - low]
+        action += self.low  # [low, high]
+
+        assert self.low <= action <= self.high
+        return ContinuousAction(action)
+
+    def take_action(self, action: ContinuousAction):
+        # clip action between -1 and 1
+        action_tensor = action.action
+        action_tensor = action_tensor.clamp(-1, 1)
+
+        # bring action from [-1, 1] -> [low, high]
+        action_tensor *= 0.5  # [-0.5, 0.5]
+        action_tensor += 0.5  # [0, 1]
+        action = self.interpolate_action(action_tensor)
+
+        return super().take_action(action)
+
+    def random_action(self) -> ContinuousAction:
+        # create random float between low and high
+        action = torch.rand(1, device=NeuralNetwork.device())  # [0, 1]
+        return self.interpolate_action(action)
+
+
+class PendulumEnv(ContinuousGymnasiumEnv):
     def __init__(self, render: bool = False):
         super().__init__("Pendulum-v1", render)
 
     def won(self, transition: Transition) -> bool:
         # there is no winning in this one
         return True
-
-    @property
-    def action_count(self) -> int:
-        # todo do not hardcode
-        return 1
-
-    def take_action(self, action: ContinuousAction):
-        return super().take_action(action)  # type: ignore
 
     def random_action(self) -> ContinuousAction:
         # random float between -2 and 2

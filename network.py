@@ -42,8 +42,7 @@ class NeuralNetwork(nn.Module):
         self.inputs = inputs
         self.outputs = outputs
         self.stack = self.create_stack()
-
-        self.optim = torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
+        self.optim = self.create_optim()
 
         # move to gpu if possible
         self.to(NeuralNetwork.device())
@@ -54,7 +53,7 @@ class NeuralNetwork(nn.Module):
     def copy_from(self, other: "NeuralNetwork"):
         self.load_state_dict(other.state_dict())
 
-    def create_stack(self):
+    def create_stack(self) -> nn.Sequential:
         # default stack, subclasses can override this
         neurons = 128
         return nn.Sequential(
@@ -64,6 +63,22 @@ class NeuralNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(neurons, self.outputs),
         )
+
+    def create_optim(self) -> torch.optim.Optimizer:
+        # default optim, subclasses can override this
+        return torch.optim.AdamW(self.parameters(), lr=1e-4, amsgrad=True)
+
+    def reset_output_weights(self, range: float = 3e-3):
+        # first, find output layer (last nn.Linear in stack)
+        output_layer = None
+        for layer in reversed(self.stack):
+            if isinstance(layer, nn.Linear):
+                output_layer = cast(nn.Linear, layer)
+                break
+        assert output_layer is not None
+
+        output_layer.weight.data.uniform_(-range, range)
+        output_layer.bias.data.uniform_(-range, range)
 
     # do not call directly, call get_q_values() instead
     def forward(self, state: torch.Tensor) -> torch.Tensor:
