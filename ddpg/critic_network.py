@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 import torch
+from torch import nn
 from torch.optim.optimizer import Optimizer as Optimizer
 from dqn.dqn_network import DqnNetwork, DqnNetworkResultBatch
 from environment.environment import Action, Environment, State
@@ -34,6 +35,17 @@ class CriticNetwork(DqnNetwork):
         copy = CriticNetwork(self.environment)
         copy.copy_from(self)
         return copy
+    
+    def create_stack(self) -> nn.Sequential:
+        n = 512
+        return nn.Sequential(
+            nn.Linear(self.inputs, n),
+            nn.ReLU(),
+            nn.Linear(n, n),
+            nn.ReLU(),
+            nn.Linear(n, self.outputs),
+            nn.Tanh(),
+        )
     
     def create_optim(self) -> Optimizer:
         return torch.optim.Adam(self.parameters(), lr=1e-3)

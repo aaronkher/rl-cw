@@ -21,7 +21,7 @@ class ActorNetwork(NeuralNetwork):
         self.reset_output_weights()
 
     def create_stack(self) -> nn.Sequential:
-        n = 128
+        n = 512
         return nn.Sequential(
             nn.Linear(self.inputs, n),
             nn.ReLU(),
