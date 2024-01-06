@@ -1,10 +1,12 @@
 import math
 from typing import Iterable
 from dataclasses import dataclass
+import time
 
 import torch
 import numpy as np
 import tmrl
+from tmrl.custom.utils import control_keyboard
 
 from network import NeuralNetwork
 from environment.environment import (
@@ -27,7 +29,7 @@ class TrackmaniaEnv(Environment):
         self._current_state: State
         self.last_action_taken: Transition | None
 
-        self.timestep_penalty = 0.001
+        self.timestep_penalty = 0.01
 
         # hardcoded for track RL01 straight
         self.track_length = 22.0
@@ -101,6 +103,29 @@ class TrackmaniaEnv(Environment):
         self._current_state = self.tensorify_state(current_state, False)
 
         self.last_action_taken = None
+
+    # keycodes from: https://community.bistudio.com/wiki/DIK_KeyCodes
+    def save_replay(self):
+        R = 0x13
+        UP = 0xC8
+        ENTER = 0x1C
+        wait_time = 0.05
+        control_keyboard.PressKey(R)
+        time.sleep(wait_time)
+        control_keyboard.ReleaseKey(R)
+        time.sleep(wait_time)
+        control_keyboard.PressKey(UP)
+        time.sleep(wait_time)
+        control_keyboard.ReleaseKey(UP)
+        time.sleep(wait_time)
+        control_keyboard.PressKey(ENTER)
+        time.sleep(wait_time)
+        control_keyboard.ReleaseKey(ENTER)
+        time.sleep(wait_time)
+        control_keyboard.PressKey(ENTER)
+        time.sleep(wait_time)
+        control_keyboard.ReleaseKey(ENTER)
+        time.sleep(wait_time)
 
     @property
     def current_state(self) -> State:
