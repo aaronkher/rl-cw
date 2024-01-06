@@ -70,6 +70,16 @@ class DqnNetwork(NeuralNetwork):
         outputs = env.action_count
         super(DqnNetwork, self).__init__(inputs, outputs)
 
+    def create_stack(self) -> nn.Sequential:
+        neurons = 512
+        return nn.Sequential(
+            nn.Linear(self.inputs, neurons),
+            nn.ReLU(),
+            nn.Linear(neurons, neurons),
+            nn.ReLU(),
+            nn.Linear(neurons, self.outputs),
+        )
+
     def create_copy(self) -> "DqnNetwork":
         copy = DqnNetwork(self.environment)
         copy.copy_from(self)
