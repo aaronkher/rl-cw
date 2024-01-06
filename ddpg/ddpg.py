@@ -70,10 +70,8 @@ class DDPG:
 
     def compute_OU_noise(self) -> float:
         # https://en.wikipedia.org/wiki/Ornstein%E2%80%93Uhlenbeck_process
-        r = np.random.randn()
-        assert r != float("-inf")
+        r = np.random.randn(self.environment.action_count)
         delta_noise = self.theta * (self.mu - self.previous_noise) + self.sigma * r
-        assert delta_noise != float("-inf")
         self.previous_noise += delta_noise
         return self.previous_noise
 
