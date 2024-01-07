@@ -33,6 +33,7 @@ class DQN:
         epsilon_decay: float = 0.05,
         buffer_batch_size: int = 100,
         checkpoint_id: str | None = None,
+        vanilla: bool = False,
     ):
         self.episode_count = episode_count
         self.timestep_count = timestep_count
@@ -42,12 +43,13 @@ class DQN:
         self.decay_rate = epsilon_decay
         self.epsilon = epsilon_start
 
+        self.vanilla = vanilla
         self.gamma = gamma
         self.buffer_batch_size = buffer_batch_size
 
         self.environment = environment
 
-        self.transition_buffer = TransitionBuffer(omega=0.5)
+        self.transition_buffer = TransitionBuffer(omega=0.5, prioritised=not self.vanilla)
         self.policy_network = DqnNetwork(self.environment)  # q1 / θ
         self.target_network = self.policy_network.create_copy()  # q2 / θ-
 
@@ -57,15 +59,21 @@ class DQN:
             self.policy_network.load_checkpoint(checkpoint_id, "policy_weights")
             self.target_network.load_checkpoint(checkpoint_id, "target_weights")
 
-    def get_policy_action(self, state: State) -> DiscreteAction:
-        action_preferences = self.policy_network.get_q_values(state).tensor
-        action_preferences = (action_preferences + 1) / 2
+        self.total_timesteps = 0
 
-        probabilities = action_preferences / torch.sum(action_preferences)
-        probabilities = probabilities.detach().cpu().numpy()
+    def get_policy_action(self, state: State, stochastic: bool = True) -> DiscreteAction:
+        if stochastic:
+            action_preferences = self.policy_network.get_q_values(state).tensor
+            action_preferences = (action_preferences + 1) / 2
 
-        action = np.random.choice(np.arange(len(probabilities)), p=probabilities)
-        return DiscreteAction(action)
+            probabilities = action_preferences / torch.sum(action_preferences)
+            probabilities = probabilities.detach().cpu().numpy()
+
+            action = np.random.choice(np.arange(len(probabilities)), p=probabilities)
+            return DiscreteAction(action)
+
+        else:
+            return self.policy_network.get_best_action(state)
 
     def get_action_using_epsilon_greedy(self, state: State):
         if np.random.uniform(0, 1) < self.epsilon:
@@ -106,17 +114,27 @@ class DQN:
 
         return td_target
 
-    def compute_td_targets_batch(self, experiences: TransitionBatch) -> TdTargetBatch:
-        # using double dqn:
-        # td_target = R_t+1 + γ * max_a' q_θ-(S_t+1, argmax_a' q_θ(S_t+1, a'))
+    def compute_td_targets_batch(
+        self, experiences: TransitionBatch, double_dqn: bool = True
+    ) -> TdTargetBatch:
+        if double_dqn:
+            # td_target = R_t+1 + γ * max_a' q_θ-(S_t+1, argmax_a' q_θ(S_t+1, a'))
 
-        # the best action in S_t+1, according to the policy network
-        best_actions = self.policy_network.get_q_values_batch(experiences.new_states).best_actions()
-        best_actions = best_actions.unsqueeze(1)
+            # the best action in S_t+1, according to the policy network
+            best_actions = self.policy_network.get_q_values_batch(experiences.new_states).best_actions()
+            best_actions = best_actions.unsqueeze(1)
 
-        # the q-value of that action, according to the target network
-        q_values = self.target_network.get_q_values_batch(experiences.new_states).for_actions(best_actions)
-        q_values = q_values.squeeze(1)
+            # the q-value of that action, according to the target network
+            q_values = self.target_network.get_q_values_batch(experiences.new_states)
+            q_values = q_values.for_actions(best_actions)
+            q_values = q_values.squeeze(1)
+
+        else:
+            # td_target = R_t+1 + γ * max_a' q_θ-(S_t+1, a')
+            q_values = self.target_network.get_q_values_batch(experiences.new_states)
+            best_actions = q_values.best_actions()
+            q_values = q_values.for_actions(best_actions.unsqueeze(1))
+
         q_values[experiences.terminal] = 0
         q_values *= self.gamma
 
@@ -144,15 +162,23 @@ class DQN:
             -self.decay_rate * episode
         )
 
-    def update_target_network(self):
-        target_net_state = self.target_network.state_dict()
-        policy_net_state = self.policy_network.state_dict()
-        tau = 0.005
+    def update_target_network(self, polyak: bool = True):
+        if polyak:
+            target_net_state = self.target_network.state_dict()
+            policy_net_state = self.policy_network.state_dict()
+            tau = 0.005
 
-        for key in policy_net_state:
-            target_net_state[key] = tau * policy_net_state[key] + (1 - tau) * target_net_state[key]
+            for key in policy_net_state:
+                target_net_state[key] = tau * policy_net_state[key] + (1 - tau) * target_net_state[key]
 
-        self.target_network.load_state_dict(target_net_state)
+            self.target_network.load_state_dict(target_net_state)
+
+        else:
+            C = 20
+            if self.total_timesteps % C > 0:
+                return
+
+            self.target_network = self.policy_network.create_copy()
 
     def backprop(self, experiences: TransitionBatch, td_targets: TdTargetBatch) -> float:
         return self.policy_network.train(experiences, td_targets)
@@ -175,6 +201,8 @@ class DQN:
                 timestep = 0
 
                 for timestep in range(self.timestep_count):
+                    self.total_timesteps += 1
+
                     state = self.environment.current_state  # S_t
                     action = self.get_action_using_epsilon_greedy(state)  # A_t
 
@@ -184,14 +212,14 @@ class DQN:
 
                     if self.transition_buffer.size() > self.buffer_batch_size:
                         replay_batch = self.transition_buffer.get_batch(self.buffer_batch_size)
-                        td_targets = self.compute_td_targets_batch(replay_batch)
+                        td_targets = self.compute_td_targets_batch(replay_batch, double_dqn=not self.vanilla)
 
                         loss = self.backprop(replay_batch, td_targets)
                         plot.add_losses(loss, can_redraw=False)
 
                         self.update_experiences_td_errors(replay_batch)
 
-                    self.update_target_network()
+                    self.update_target_network(polyak=not self.vanilla)
 
                     # process termination
                     if transition.end_of_episode():

@@ -19,14 +19,12 @@ class TransitionBatch:
     def __init__(self, experiences: list[Experience]):
         self.experiences = experiences
         self.size = len(experiences)
-        #in
-        #List[0, 2, 3, 6 ...]
-        #List[[0.5, -0.7], [0.1, 0], ...]
 
-        #out
         # Tensor[[0], [2], [1], ...] for disctete
         # Tensor[[0.5, -0.7], [0.1, 0], ...] for continuous
-        self.actions = NeuralNetwork.tensorify(np.array([exp.transition.action.numpy() for exp in experiences]))
+        self.actions = NeuralNetwork.tensorify(
+            np.array([exp.transition.action.numpy() for exp in experiences])
+        )
 
         # Tensor[-0.99, -0.99, ...]
         self.rewards = NeuralNetwork.tensorify([exp.transition.reward for exp in experiences])
@@ -45,13 +43,17 @@ class TransitionBatch:
 
 
 class TransitionBuffer:
-    def __init__(self, max_len: int = 10000, omega: float = 0.5):
+    def __init__(self, max_len: int = 10000, omega: float = 0.5, prioritised: bool = True):
         self.buffer: Deque[Experience] = collections.deque(maxlen=max_len)
         self.new_transitions: list[Transition] = []
         self.omega = omega
+        self.prioritised = prioritised
 
     def add(self, transition: Transition):
-        self.new_transitions.append(transition)
+        if self.prioritised:
+            self.new_transitions.append(transition)
+        else:
+            self.buffer.append(Experience(transition, 0.0))
 
     def get_priorities(self) -> ndarray | None:
         priorities = np.array([exp.td_error for exp in self.buffer])
@@ -59,6 +61,10 @@ class TransitionBuffer:
         return priorities
 
     def get_batch(self, batch_size: int) -> TransitionBatch:
+        if not self.prioritised:
+            indices = np.random.choice(len(self.buffer), batch_size)
+            return TransitionBatch([self.buffer[idx] for idx in indices])
+
         experiences = []
 
         # if there are new transitions, add them
