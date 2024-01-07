@@ -78,19 +78,22 @@ class TrackmaniaEnv(Environment):
         new_state = self.tensorify_state(np_new_state, terminated)
         reward = float(_reward)
 
-        # reward engineering
-        if truncated:  # if we lost
-            # we lost, punish it for the distance it didn't do
-            reward -= (1 - progress) * 100
+        # # reward engineering
+        # if truncated:  # if we lost
+        #     # we lost, punish it for the distance it didn't do
+        #     reward -= (1 - progress) * 100
 
-        reward -= self.timestep_penalty  # adding penalty for each timestep
+        # reward -= self.timestep_penalty  # adding penalty for each timestep
 
-        # punish it for getting close to the borders
-        right_lidar, left_lidar = float(new_state.tensor[0]), float(new_state.tensor[2])
-        if left_lidar < 150:
-            reward -= 0.5
-        if right_lidar < 150:
-            reward -= 0.5
+        # # punish it for getting close to the borders
+        # right_lidar, left_lidar = float(new_state.tensor[0]), float(new_state.tensor[2])
+        # if left_lidar < 150:
+        #     reward -= 0.5
+        # if right_lidar < 150:
+        #     reward -= 0.5
+
+        speed = float(np_new_state[0])
+        reward += speed / 1000
 
         self._current_state = new_state
         self.last_action_taken = Transition(
