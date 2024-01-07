@@ -35,6 +35,7 @@ if __name__ == "__main__":
             epsilon_decay=0.01,
             buffer_batch_size=256,
             checkpoint_id=chk,
+            # vanilla=True,
         )
     elif args.ddpg:
         env = ControllerTrackmania()
@@ -57,15 +58,15 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         print("No checkpoint id provided, training new agent\n")
-        high_score = float("-inf")
+        high_score = float("inf")
         best_agent: DQN | DDPG | None = None
 
         for i in range(9):
             print(f"Training agent: {i+1}\n")
-            agent = create_agent(eps=5)
+            agent = create_agent(eps=500000)
             agent.train()
 
-            if agent.high_score > high_score:
+            if agent.high_score < high_score:
                 print(f"Starting agent upgraded, new highest score: {agent.high_score}\n")
                 best_agent = agent
                 high_score = agent.high_score

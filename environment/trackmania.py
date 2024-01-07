@@ -32,7 +32,7 @@ class TrackmaniaEnv(Environment):
         self._current_state: State
         self.last_action_taken: Transition | None
 
-        self.timestep_penalty = 0.00
+        self.timestep_penalty = 0.1
 
     def track_progress(self, state) -> float:
         return float(state[1])
@@ -42,7 +42,7 @@ class TrackmaniaEnv(Environment):
 
     @property
     def observation_space_length(self) -> int:
-        return 20
+        return 3
 
     def tensorify_state(self, state: tuple[np.ndarray], terminated: bool) -> State:
         np_state = self.format_state(state)
@@ -53,8 +53,9 @@ class TrackmaniaEnv(Environment):
 
     def format_state(self, state: tuple[np.ndarray, ...]) -> np.ndarray:
         speed, progress, lidars, prev_action1, prev_action2 = state
-        inputs = np.concatenate([speed, lidars[3]])
-        return inputs
+        lidars = lidars[3]
+        lidars = np.array([lidars[2], lidars[10], lidars[18]])
+        return lidars
 
     def take_action(self, raw_action: Action, gas: float, steer: float) -> Transition:
         assert 0 <= gas <= 1
@@ -78,9 +79,9 @@ class TrackmaniaEnv(Environment):
         reward = float(_reward)
 
         # reward engineering
-        # if truncated:  # if we lost
+        if truncated:  # if we lost
             # we lost, punish it for the distance it didn't do
-            # reward -= (1 - progress) * 100
+            reward -= (1 - progress) * 100
 
         reward -= self.timestep_penalty  # adding penalty for each timestep
 
