@@ -4,6 +4,7 @@ from datetime import datetime
 
 import numpy as np
 import torch
+import time
 import numpy as np
 from data_helper import LivePlot
 from ddpg.actor_network import ActorNetwork
@@ -162,6 +163,8 @@ class DDPG:
                 # episode ended
                 recent_rewards.append(reward_sum)
 
+                time_taken = time.time() - self.environment.last_reset
+
                 # print episode result
                 assert transition is not None
                 won = self.environment.won(transition)
@@ -170,7 +173,7 @@ class DDPG:
                 print(
                     f"Episode {episode+1: <3} | {timestep+1: >3} timesteps {won_str}"
                     f" | reward {reward_sum: <7.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards)}) "
-                    f" | sigma {self.sigma: <5.2f}"
+                    f" | sigma {self.sigma: <5.2f} | time_taken {time_taken:.2f}"
                 )
 
                 now = datetime.now()
@@ -216,7 +219,10 @@ class DDPG:
 
                 self.decay_noise()
 
-                plot.add_episode(reward_sum, won, running_avg)
+                if not won:
+                    time_taken = -1.0
+                plot.add_episode(reward_sum, won, running_avg, time_taken)
+                self.environment.save_replay()
 
         except KeyboardInterrupt:  # ctrl-c received while training
             pass  # stop training
