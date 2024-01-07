@@ -10,6 +10,7 @@ from data_helper import LivePlot
 from ddpg.actor_network import ActorNetwork
 from ddpg.critic_network import CriticNetwork
 from environment.environment import Action, ContinuousAction, ContinuousActionEnv, Environment, State
+from environment.trackmania import TrackmaniaEnv
 from replay_buffer import TransitionBatch, TransitionBuffer
 
 
@@ -163,7 +164,10 @@ class DDPG:
                 # episode ended
                 recent_rewards.append(reward_sum)
 
-                time_taken = time.time() - self.environment.last_reset
+                if isinstance(self.environment, TrackmaniaEnv):
+                    time_taken = time.time() - self.environment.last_reset
+                else:
+                    time_taken = -1.0
 
                 # print episode result
                 assert transition is not None
@@ -222,7 +226,8 @@ class DDPG:
                 if not won:
                     time_taken = -1.0
                 plot.add_episode(reward_sum, won, running_avg, time_taken)
-                self.environment.save_replay()
+                if isinstance(self.environment, TrackmaniaEnv):
+                    self.environment.save_replay()
 
         except KeyboardInterrupt:  # ctrl-c received while training
             pass  # stop training
