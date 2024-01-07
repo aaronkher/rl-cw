@@ -35,7 +35,7 @@ class TransitionBatch:
         self.new_states = torch.stack([exp.transition.new_state.tensor for exp in experiences])
 
         # Tensor[False, False, True, ...]
-        self.terminal = NeuralNetwork.tensorify([exp.transition.new_state.terminal for exp in experiences])
+        self.terminal = NeuralNetwork.tensorify([exp.transition.new_state.terminal or exp.transition.truncated for exp in experiences])
 
     def update_td_errors(self, td_errors: Iterable[float]):
         for exp, td_error in zip(self.experiences, td_errors):

@@ -24,7 +24,7 @@ class CriticNetworkResults:
 class CriticNetwork(DqnNetwork):
     def __init__(self, env: Environment):
         inputs = env.action_count + env.observation_space_length
-        outputs = env.action_count
+        outputs = 1
         super(DqnNetwork, self).__init__(inputs, outputs)
 
         self.environment = env
@@ -35,9 +35,9 @@ class CriticNetwork(DqnNetwork):
         copy = CriticNetwork(self.environment)
         copy.copy_from(self)
         return copy
-    
+
     def create_stack(self) -> nn.Sequential:
-        n = 512
+        n = 256
         return nn.Sequential(
             nn.Linear(self.inputs, n),
             nn.ReLU(),
@@ -45,7 +45,7 @@ class CriticNetwork(DqnNetwork):
             nn.ReLU(),
             nn.Linear(n, self.outputs),
         )
-    
+
     def create_optim(self) -> Optimizer:
         return torch.optim.Adam(self.parameters(), lr=1e-3)
 
@@ -72,12 +72,14 @@ class CriticNetwork(DqnNetwork):
         td_targets_tensor = td_targets.tensor
         # y = actual (target network)
 
-        return self.gradient_descent(q_values, td_targets_tensor)
+        return self.gradient_descent(td_targets_tensor, q_values)
 
-    def gradient_descent(self, q_values: torch.Tensor, td_targets: torch.Tensor) -> float:
+    def gradient_descent(self, td_targets: torch.Tensor, q_values: torch.Tensor) -> float:
+        # loss = torch.nn.functional.mse_loss(td_targets, q_values)
+        criterion = torch.nn.HuberLoss()
+        loss = criterion(td_targets, q_values)
+
         self.optim.zero_grad()
-
-        loss = torch.nn.functional.mse_loss(q_values, td_targets)
         loss.backward()
 
         self.optim.step()

@@ -202,8 +202,7 @@ class ControllerTrackmania(TrackmaniaEnv, ContinuousActionEnv):
 
     def take_action(self, action: ContinuousAction) -> Transition:
         gas, steer = action.action
-        gas = gas * (1 / 3) + (2 / 3)  # [-1, 1] -> [0333333, 1]
-        gas = gas.sqrt()
+        gas = 1 if gas > 0.5 else 0
         return super().take_action(action, float(gas), float(steer))
 
     def random_action(self) -> ContinuousAction:

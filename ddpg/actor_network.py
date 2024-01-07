@@ -21,14 +21,14 @@ class ActorNetwork(NeuralNetwork):
         self.reset_output_weights()
 
     def create_stack(self) -> nn.Sequential:
-        n = 512
+        n = 256
         return nn.Sequential(
             nn.Linear(self.inputs, n),
             nn.ReLU(),
             nn.Linear(n, n),
             nn.ReLU(),
             nn.Linear(n, self.outputs),
-            nn.Tanh(),
+            nn.Sigmoid(),
         )
 
     def create_optim(self) -> Optimizer:

@@ -39,7 +39,7 @@ class DDPG:
         self.target_network_learning_rate = target_network_learning_rate
 
         self.environment = environment
-        self.transition_buffer = TransitionBuffer(omega=0.5)
+        self.transition_buffer = TransitionBuffer(omega=0.5, prioritised=False)
 
         self.critic_network = CriticNetwork(self.environment)
         self.target_critic_network = self.critic_network.create_copy()
