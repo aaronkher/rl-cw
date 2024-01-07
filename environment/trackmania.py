@@ -54,7 +54,7 @@ class TrackmaniaEnv(Environment):
     def format_state(self, state: tuple[np.ndarray, ...]) -> np.ndarray:
         speed, progress, lidars, prev_action1, prev_action2 = state
         lidars = lidars[3]
-        lidars = np.array([lidars[2], lidars[10], lidars[18]])
+        lidars = np.array([lidars[2], lidars[9], lidars[-3]])
         return lidars
 
     def take_action(self, raw_action: Action, gas: float, steer: float) -> Transition:
@@ -84,6 +84,13 @@ class TrackmaniaEnv(Environment):
             reward -= (1 - progress) * 100
 
         reward -= self.timestep_penalty  # adding penalty for each timestep
+
+        # punish it for getting close to the borders
+        right_lidar, left_lidar = float(new_state.tensor[0]), float(new_state.tensor[2])
+        if left_lidar < 150:
+            reward -= 0.5
+        if right_lidar < 150:
+            reward -= 0.5
 
         self._current_state = new_state
         self.last_action_taken = Transition(
