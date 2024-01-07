@@ -2,7 +2,7 @@ import sys
 
 from ddpg.ddpg import DDPG
 from dqn.dqn import DQN
-from environment.gymnasium import CartpoleEnv, MountainCarEnv, PendulumEnv
+from environment.gymnasium import CartpoleEnv, LunarLanderEnv, MountainCarEnv, PendulumEnv
 from environment.trackmania import ControllerTrackmania, KeyboardTrackmania
 from argparse import ArgumentParser
 
@@ -24,12 +24,13 @@ if __name__ == "__main__":
     episode_count = 10**100
     timestep_count = 10**100
     if args.dqn:
-        env = KeyboardTrackmania()
+        # env = KeyboardTrackmania()
+        env = LunarLanderEnv()
         create_agent = lambda chk=checkpoint_id, eps=episode_count: DQN(
             environment=env,
             episode_count=eps,
             timestep_count=timestep_count,
-            gamma=1.0,
+            gamma=0.99,
             epsilon_start=args.epsilon_start or 0.3,
             epsilon_min=0.01,
             epsilon_decay=0.01,
@@ -64,7 +65,7 @@ if __name__ == "__main__":
         for i in range(9):
             print(f"Training agent: {i+1}\n")
             agent = create_agent(eps=500000)
-            agent.train()
+            agent.train(seed=True)
 
             if agent.high_score < high_score:
                 print(f"Starting agent upgraded, new highest score: {agent.high_score}\n")

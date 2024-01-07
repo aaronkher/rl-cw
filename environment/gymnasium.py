@@ -82,6 +82,9 @@ class GymnasiumEnv(Environment):
         return self.last_action_taken.reward
 
 
+# === DISCRETE ENVS ===
+
+
 class DiscreteGymnasiumEnv(GymnasiumEnv, DiscreteActionEnv):
     @property
     def action_list(self) -> list[DiscreteAction]:
@@ -110,7 +113,7 @@ class MountainCarEnv(DiscreteGymnasiumEnv):
 
     def reward_engineering(self, transition: Transition) -> float:
         old_state = transition.old_state
-        _, old_velocity = old_state.tensor 
+        _, old_velocity = old_state.tensor
         new_state = transition.new_state
         _, new_velocity = new_state.tensor
 
@@ -121,7 +124,18 @@ class MountainCarEnv(DiscreteGymnasiumEnv):
     def won(self, transition: Transition) -> bool:
         # terminated means we reached the finish line
         return transition.new_state.terminal
-        
+
+
+class LunarLanderEnv(DiscreteGymnasiumEnv):
+    def __init__(self, render: bool = False):
+        super().__init__("LunarLander-v2", render)
+
+    def won(self, transition: Transition) -> bool:
+        # terminated means we reached the finish line
+        return transition.new_state.terminal
+
+
+# === CONTINUOUS ENVS ===
 
 
 class ContinuousGymnasiumEnv(GymnasiumEnv, ContinuousActionEnv):
@@ -184,7 +198,7 @@ class MountainCarContinuousEnv(ContinuousGymnasiumEnv):
 
     def reward_engineering(self, transition: Transition) -> float:
         old_state = transition.old_state
-        _, old_velocity = old_state.tensor 
+        _, old_velocity = old_state.tensor
         new_state = transition.new_state
         _, new_velocity = new_state.tensor
 

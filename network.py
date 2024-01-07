@@ -183,7 +183,7 @@ class NeuralNetwork(nn.Module):
         target_net_state = self.state_dict()
         β = update_rate  # shorten name
 
-        for key in main_net_state:
+        for key in target_net_state:
             target_net_state[key] = β * main_net_state[key] + (1 - β) * target_net_state[key]
 
         self.load_state_dict(target_net_state)

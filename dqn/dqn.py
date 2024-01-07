@@ -184,7 +184,7 @@ class DQN:
     def backprop(self, experiences: TransitionBatch, td_targets: TdTargetBatch) -> float:
         return self.policy_network.train(experiences, td_targets)
 
-    def train(self):
+    def train(self, seed: bool = False):
         plot = LivePlot()
 
         self.high_score = float("-inf")
@@ -229,7 +229,7 @@ class DQN:
                 # episode ended
                 recent_rewards.append(reward_sum)
 
-                time_taken = time.time() - self.environment.last_reset
+                # time_taken = time.time() - self.environment.last_reset
 
                 # print episode result
                 assert transition is not None
@@ -239,7 +239,8 @@ class DQN:
                 print(
                     f"Episode {episode+1: <3} | {timestep+1: >3} timesteps {won_str}"
                     f" | reward {reward_sum: <6.2f} | avg {running_avg: <6.2f} {f'(last {len(recent_rewards)})': <9}"
-                    f" | ε {self.epsilon:.2f} | time_taken {time_taken:.2f}"
+                    f" | ε {self.epsilon:.2f}"
+                    # f" | time_taken {time_taken:.2f}"
                 )
 
                 now = datetime.now()
@@ -281,12 +282,15 @@ class DQN:
 
                 self.decay_epsilon(episode)
 
-                if not won:
-                    time_taken = -1.0
+                
+                # if not won:
+                time_taken = -1.0
                 plot.add_episode(reward_sum, won, running_avg, time_taken)
-                self.environment.save_replay()
+                # self.environment.save_replay()
 
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as e:
+            if seed:
+                raise e
             pass
 
         try:
