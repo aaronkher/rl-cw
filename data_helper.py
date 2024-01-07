@@ -12,6 +12,7 @@ class LivePlot:
         self.rewards = RewardsGraph("Total reward per episode")
         self.actor_loss = PlotGraph("Actor loss")
         self.critic_loss = PlotGraph("Critic loss", data_color="r", avg_color="y")
+        self.times = PlotGraph("Time per episode", ylabel="Time (s)")
 
         self.last_draw = 0
         self.last_draw_duration = 0.001
@@ -21,13 +22,26 @@ class LivePlot:
     def create_figure(self):
         plt.ion()
 
-        self.figure = plt.figure(figsize=(14, 4))
+        self.figure = plt.figure(figsize=(8, 8))
 
-    def add_episode(self, reward: float, won: bool, running_avg: float):
+    def add_episode(
+        self,
+        reward: float,
+        won: bool,
+        running_avg: float,
+        time_taken: float,
+    ):
         self.rewards.add_data_point(reward, running_avg, won)
+        if time_taken > 0:
+            self.times.add_data_point(time_taken)
         self.tick()
 
-    def add_losses(self, actor_loss: float, critic_loss: float | None = None, can_redraw: bool = True):
+    def add_losses(
+        self,
+        actor_loss: float,
+        critic_loss: float | None = None,
+        can_redraw: bool = True,
+    ):
         self.actor_loss.add_data_point(actor_loss)
         if critic_loss is not None:
             self.critic_loss.add_data_point(critic_loss)
@@ -56,9 +70,10 @@ class LivePlot:
         # )
 
     def draw(self):
-        self.rewards.subplot(131)
-        self.actor_loss.subplot(132)
-        self.critic_loss.subplot(133)
+        self.rewards.subplot(221)
+        self.times.subplot(222)
+        self.actor_loss.subplot(223)
+        self.critic_loss.subplot(224)
 
         self.figure.canvas.draw()
         self.figure.canvas.flush_events()

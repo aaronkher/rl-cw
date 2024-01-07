@@ -100,6 +100,8 @@ class TrackmaniaEnv(Environment):
 
         self.last_action_taken = None
 
+        self.last_reset = time.time()
+
     # keycodes from: https://community.bistudio.com/wiki/DIK_KeyCodes
     def save_replay(self):
         R = 0x13
