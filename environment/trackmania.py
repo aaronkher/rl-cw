@@ -151,7 +151,7 @@ class TrackmaniaEnv(Environment):
 
 class KeyboardTrackmania(TrackmaniaEnv, DiscreteActionEnv):
     def __init__(self):
-        set_virtual_gamepad(False)
+        set_virtual_gamepad(True)
         super().__init__()
 
     @property
