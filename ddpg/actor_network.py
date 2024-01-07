@@ -32,7 +32,7 @@ class ActorNetwork(NeuralNetwork):
         )
 
     def create_optim(self) -> Optimizer:
-        return torch.optim.Adam(self.parameters(), lr=3e-4)
+        return torch.optim.Adam(self.parameters(), lr=1e-3)
 
     def create_copy(self) -> "ActorNetwork":
         copy = ActorNetwork(self.environment, self.critic_network)

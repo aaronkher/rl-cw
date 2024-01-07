@@ -34,34 +34,26 @@ class TrackmaniaEnv(Environment):
 
         self.timestep_penalty = 0.00
 
-        # hardcoded for track RL01 straight
-        self.track_length = 22.0
-        self.track_length_done = 0
-
     def track_progress(self, state) -> float:
         return float(state[1])
 
     def won(self, transition: Transition) -> bool:
-        # return abs(transition.reward - (100 - self.timestep_penalty)) < 0.001
-        # reward_if_won = 100 - self.timestep_penalty
-        # return abs(transition.reward - reward_if_won) < 0.001
-
-        return self.track_progress(transition.new_state.tensor) == 1.0
+        return transition.new_state.terminal
 
     @property
     def observation_space_length(self) -> int:
         return 20
 
     def tensorify_state(self, state: tuple[np.ndarray], terminated: bool) -> State:
-        state = self.format_state(state)
+        np_state = self.format_state(state)
 
         device = NeuralNetwork.device()
-        state_tensor = torch.from_numpy(state).to(device)
-        return State(state_tensor, terminated)   
-    
-    def format_state(self, state:tuple[np.ndarray]) -> State:
+        state_tensor = torch.from_numpy(np_state).to(device)
+        return State(state_tensor, terminated)
+
+    def format_state(self, state: tuple[np.ndarray, ...]) -> np.ndarray:
         speed, progress, lidars, prev_action1, prev_action2 = state
-        inputs = np.concatenate([speed, lidars[3].flatten()])
+        inputs = np.concatenate([speed, lidars[3]])
         return inputs
 
     def take_action(self, raw_action: Action, gas: float, steer: float) -> Transition:
@@ -70,17 +62,25 @@ class TrackmaniaEnv(Environment):
         formatted_action = np.array([gas, 0.0, steer])
 
         old_state = self.current_state
-        (new_state_ndarray, _reward, terminated, truncated, _) = self.env.step(formatted_action)
+        (np_new_state, _reward, terminated, truncated, _) = self.env.step(formatted_action)
 
-        new_state = self.tensorify_state(new_state_ndarray, terminated)
+        progress = self.track_progress(np_new_state)
+        won = progress > 0.99
+
+        # on end of episode, termianted=true and truncated=false regardless
+        # of whether we won or lost.
+        # let's fix that.
+        if terminated:
+            terminated = won
+            truncated = not won
+
+        new_state = self.tensorify_state(np_new_state, terminated)
         reward = float(_reward)
 
         # reward engineering
-        progress = self.track_progress(new_state_ndarray)
-        won = progress > 0.99
-        if terminated and not won:
+        # if truncated:  # if we lost
             # we lost, punish it for the distance it didn't do
-            reward -= (1 - progress) * 100
+            # reward -= (1 - progress) * 100
 
         reward -= self.timestep_penalty  # adding penalty for each timestep
 
@@ -190,6 +190,7 @@ class ControllerTrackmania(TrackmaniaEnv, ContinuousActionEnv):
     def take_action(self, action: ContinuousAction) -> Transition:
         gas, steer = action.action
         gas = gas * 0.5 + 0.5  # [-1, 1] -> [0, 1]
+        gas = gas.sqrt()
         return super().take_action(action, float(gas), float(steer))
 
     def random_action(self) -> ContinuousAction:

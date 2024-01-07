@@ -8,6 +8,8 @@ import torch
 import numpy as np
 import numpy.typing as npt
 
+from network import NeuralNetwork
+
 
 class Action(ABC):
     @abstractmethod
@@ -41,6 +43,7 @@ class ContinuousAction(Action):
         self.action = torch.clamp(self.action, low, high)
 
     def __add__(self, other) -> "ContinuousAction":
+        other = NeuralNetwork.tensorify(other)
         return ContinuousAction(self.action + other)
 
     def numpy(self) -> np.ndarray:

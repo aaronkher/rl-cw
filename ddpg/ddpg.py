@@ -65,12 +65,21 @@ class DDPG:
 
         noise = self.compute_OU_noise()
         action = perfect_action + noise
+        
+        # tmp
+        # gas_b4, steer_b4 = action.action
+
         action.clamp(-1, 1)
+
+        # tmp
+        # gas, steer = action.action
+        # print(f"gas={gas_b4: <6.2f} -> {gas: <6.2f}, steer = {steer_b4: <6.2f} -> {steer: <6.2f}")
+
         return action
 
-    def compute_OU_noise(self) -> float:
+    def compute_OU_noise(self) -> np.ndarray:
         # https://en.wikipedia.org/wiki/Ornstein%E2%80%93Uhlenbeck_process
-        r = np.random.randn(self.environment.action_count)
+        r = np.random.randn(self.environment.action_count).astype(np.float32)
         delta_noise = self.theta * (self.mu - self.previous_noise) + self.sigma * r
         self.previous_noise += delta_noise
         return self.previous_noise
@@ -108,8 +117,8 @@ class DDPG:
         self.target_critic_network.polyak_update(self.critic_network, self.target_network_learning_rate)
         self.target_actor_network.polyak_update(self.actor_network, self.target_network_learning_rate)
 
-    def decay_noise(self, episode: int):  # todo rename
-        self.sigma = max(0.01, self.sigma - 0.0001)
+    def decay_noise(self):  # todo rename
+        self.sigma = max(0.01, self.sigma * 0.99)
 
     def train(self):
         plot = LivePlot()
@@ -155,12 +164,13 @@ class DDPG:
 
                 # print episode result
                 assert transition is not None
-                won = transition.truncated
+                won = self.environment.won(transition)
                 won_str = "(won) " if won else "(lost)"
                 running_avg = sum(recent_rewards) / len(recent_rewards)
                 print(
                     f"Episode {episode+1: <3} | {timestep+1: >3} timesteps {won_str}"
-                    f" | reward {reward_sum: <7.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards)})"
+                    f" | reward {reward_sum: <7.2f} | avg {running_avg: <6.2f} (last {len(recent_rewards)}) "
+                    f" | sigma {self.sigma: <5.2f}"
                 )
 
                 now = datetime.now()
@@ -204,7 +214,7 @@ class DDPG:
                     plot.save_img(checkpoint_folder / "plot.png")
                     plot.save_csv(checkpoint_folder / "data.csv")
 
-                self.decay_noise(episode)
+                self.decay_noise()
 
                 plot.add_episode(reward_sum, won, running_avg)
 
