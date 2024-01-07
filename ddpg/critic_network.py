@@ -82,6 +82,8 @@ class CriticNetwork(DqnNetwork):
         self.optim.zero_grad()
         loss.backward()
 
+        nn.utils.clip_grad.clip_grad_value_(self.parameters(), 1000.0)
+
         self.optim.step()
 
         return loss.item()

@@ -39,7 +39,7 @@ class DDPG:
         self.target_network_learning_rate = target_network_learning_rate
 
         self.environment = environment
-        self.transition_buffer = TransitionBuffer(omega=0.5, prioritised=False)
+        self.transition_buffer = TransitionBuffer(omega=0.5)
 
         self.critic_network = CriticNetwork(self.environment)
         self.target_critic_network = self.critic_network.create_copy()
@@ -122,7 +122,7 @@ class DDPG:
     def decay_noise(self):  # todo rename
         self.sigma = max(0.01, self.sigma * 0.99)
 
-    def train(self):
+    def train(self, seed: bool = True):
         plot = LivePlot()
 
         self.high_score = float("-inf")
@@ -229,7 +229,9 @@ class DDPG:
                 if isinstance(self.environment, TrackmaniaEnv):
                     self.environment.save_replay()
 
-        except KeyboardInterrupt:  # ctrl-c received while training
+        except KeyboardInterrupt as e:  # ctrl-c received while training
+            if seed:
+                raise e
             pass  # stop training
 
         try:

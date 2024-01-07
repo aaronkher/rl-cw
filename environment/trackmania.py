@@ -93,7 +93,7 @@ class TrackmaniaEnv(Environment):
         #     reward -= 0.5
 
         speed = float(np_new_state[0])
-        reward += speed / 1000
+        reward += speed / 500
 
         self._current_state = new_state
         self.last_action_taken = Transition(
@@ -198,12 +198,11 @@ class ControllerTrackmania(TrackmaniaEnv, ContinuousActionEnv):
 
     @property
     def action_count(self) -> int:
-        return 2  # gas and steer
+        return 1  # steer
 
     def take_action(self, action: ContinuousAction) -> Transition:
-        gas, steer = action.action
-        gas = 1 if gas > 0.5 else 0
-        return super().take_action(action, float(gas), float(steer))
+        steer = action.action
+        return super().take_action(action, 1.0, float(steer))
 
     def random_action(self) -> ContinuousAction:
         # torch.rand(1) returns float in [0, 1]

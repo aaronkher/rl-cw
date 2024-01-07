@@ -61,14 +61,15 @@ class ActorNetwork(NeuralNetwork):
         return self.gradient_ascent(q_values)
 
     def gradient_ascent(self, q_values: torch.Tensor) -> float:
-        # q_values = -q_values
-
         # take the mean
-        mean_qvalue = -q_values.mean()
+        mean_qvalue = -q_values.sum()
 
         # backprop
         self.optim.zero_grad()
         mean_qvalue.backward()
+
+        nn.utils.clip_grad.clip_grad_value_(self.parameters(), 1000.0)
+
         self.optim.step()
 
         return mean_qvalue.item()
