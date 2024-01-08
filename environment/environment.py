@@ -126,3 +126,7 @@ class ContinuousActionEnv(Environment):
     @property
     def action_count(self) -> int:
         ...
+
+    @abstractmethod
+    def random_action(self) -> ContinuousAction:
+        ...

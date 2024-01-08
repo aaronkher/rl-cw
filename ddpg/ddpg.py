@@ -10,7 +10,7 @@ from data_helper import LivePlot
 from ddpg.actor_network import ActorNetwork
 from ddpg.critic_network import CriticNetwork
 from environment.environment import Action, ContinuousAction, ContinuousActionEnv, Environment, State
-from environment.trackmania import TrackmaniaEnv
+from environment.trackmania import ControllerTrackmania
 from replay_buffer import TransitionBatch, TransitionBuffer
 
 
@@ -31,6 +31,8 @@ class DDPG:
         mu: float = 0.0,
         theta: float = 0.15,
         sigma: float = 0.2,
+        prioritised_replay: bool = True,
+        random: bool = False,
         checkpoint_id: str | None = None,
     ):
         self.episode_count = episode_count
@@ -38,8 +40,11 @@ class DDPG:
         self.buffer_batch_size = buffer_batch_size
         self.target_network_learning_rate = target_network_learning_rate
 
+        self.prioritised_replay = prioritised_replay
+        self.random = random
+
         self.environment = environment
-        self.transition_buffer = TransitionBuffer(omega=0.5)
+        self.transition_buffer = TransitionBuffer(omega=0.5, prioritised=prioritised_replay)
 
         self.critic_network = CriticNetwork(self.environment)
         self.target_critic_network = self.critic_network.create_copy()
@@ -62,12 +67,15 @@ class DDPG:
         self.previous_noise = mu
 
     def get_action(self, state: State) -> ContinuousAction:
+        if self.random:
+            return self.environment.random_action()
+
         perfect_action = self.actor_network.get_action(state)
         assert isinstance(perfect_action, ContinuousAction)
 
         noise = self.compute_OU_noise()
         action = perfect_action + noise
-        
+
         # tmp
         # gas_b4, steer_b4 = action.action
 
@@ -164,7 +172,7 @@ class DDPG:
                 # episode ended
                 recent_rewards.append(reward_sum)
 
-                if isinstance(self.environment, TrackmaniaEnv):
+                if isinstance(self.environment, ControllerTrackmania):
                     time_taken = time.time() - self.environment.last_reset
                 else:
                     time_taken = -1.0
@@ -206,6 +214,9 @@ class DDPG:
                         "running_for": running_for,
                         "start_checkpoint": self.checkpoint_id,
                         "previous_checkpoint": self.latest_checkpoint,
+                        "high_score": self.high_score,
+                        "prioritised_replay": self.prioritised_replay,
+                        "random": self.random,
                         "suffix": suffix,
                     }
 
@@ -226,7 +237,7 @@ class DDPG:
                 if not won:
                     time_taken = -1.0
                 plot.add_episode(reward_sum, won, running_avg, time_taken)
-                if isinstance(self.environment, TrackmaniaEnv):
+                if isinstance(self.environment, ControllerTrackmania):
                     self.environment.save_replay()
 
         except KeyboardInterrupt as e:  # ctrl-c received while training

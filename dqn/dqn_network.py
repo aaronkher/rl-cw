@@ -71,14 +71,13 @@ class DqnNetwork(NeuralNetwork):
         super(DqnNetwork, self).__init__(inputs, outputs)
 
     def create_stack(self) -> nn.Sequential:
-        neurons = 128
+        neurons = 512
         return nn.Sequential(
             nn.Linear(self.inputs, neurons),
             nn.ReLU(),
             nn.Linear(neurons, neurons),
             nn.ReLU(),
             nn.Linear(neurons, self.outputs),
-            nn.ReLU(),
         )
 
     def create_copy(self) -> "DqnNetwork":

@@ -2,7 +2,13 @@ import sys
 
 from ddpg.ddpg import DDPG
 from dqn.dqn import DQN
-from environment.gymnasium import CartpoleEnv, LunarLanderEnv, MountainCarEnv, PendulumEnv
+from environment.gymnasium import (
+    CartpoleEnv,
+    LunarLanderEnv,
+    MountainCarContinuousEnv,
+    MountainCarEnv,
+    PendulumEnv,
+)
 from environment.trackmania import ControllerTrackmania, KeyboardTrackmania
 from argparse import ArgumentParser
 
@@ -23,56 +29,61 @@ if __name__ == "__main__":
 
     episode_count = 10**100
     timestep_count = 10**100
-    if args.dqn:
-        # env = KeyboardTrackmania()
-        env = LunarLanderEnv()
-        create_agent = lambda chk=checkpoint_id, eps=episode_count: DQN(
-            environment=env,
-            episode_count=eps,
-            timestep_count=timestep_count,
-            gamma=0.99,
-            epsilon_start=args.epsilon_start or 0.3,
-            epsilon_min=0.01,
-            epsilon_decay=0.01,
-            buffer_batch_size=256,
-            checkpoint_id=chk,
-            # vanilla=True,
-        )
-    elif args.ddpg:
-        env = ControllerTrackmania()
-        create_agent = lambda chk=checkpoint_id, eps=episode_count: DDPG(
-            environment=env,
-            episode_count=eps,
-            gamma=1.0,
-            buffer_batch_size=256,
-            target_network_learning_rate=0.005,
-            checkpoint_id=chk,
-        )
-    else:
-        print("Either --dqn or --ddpg must be specified!")
-        sys.exit(1)
 
-    if checkpoint_id is not None:
-        print(f"Loading agent from checkpoint: {checkpoint_id}\n")
-        agent = create_agent()
+    # env = KeyboardTrackmania()
+    # env = LunarLanderEnv()
+    dqn_env = MountainCarEnv()
+
+    create_dqn_agent = lambda chk=checkpoint_id, eps=episode_count, **kwargs: DQN(
+        environment=dqn_env,
+        episode_count=eps,
+        timestep_count=timestep_count,
+        gamma=0.99,
+        epsilon_start=0.9,
+        epsilon_min=0.01,
+        epsilon_decay=0.01,
+        buffer_batch_size=256,
+        checkpoint_id=chk,
+        **kwargs
+    )
+
+    for double_dqn in [True, False]:
+        for prioritised_replay in [True, False]:
+            agent = create_dqn_agent(
+                double_dqn=double_dqn,
+                prioritised_replay=prioritised_replay,
+                eps=400,
+            )
+            agent.train()
+
+    for polyak in [True, False]:
+        agent = create_dqn_agent(
+            polyak=polyak,
+            double_dqn=False,
+            prioritised_replay=False,
+            eps=400,
+        )
+        agent = agent.train()
+
+    for random in [True, False]:
+        agent = create_dqn_agent(random=random, eps=400)
+        agent = agent.train()
+
+    ddpg_env = MountainCarContinuousEnv()
+    create_ddpg_agent = lambda chk=checkpoint_id, eps=episode_count, **kwargs: DDPG(
+        environment=ddpg_env,
+        episode_count=eps,
+        gamma=0.99,
+        buffer_batch_size=256,
+        target_network_learning_rate=0.005,
+        checkpoint_id=chk,
+        **kwargs
+    )
+
+    for prioritised_replay in [True, False]:
+        agent = create_ddpg_agent(prioritised_replay=prioritised_replay)
         agent.train()
-        sys.exit(0)
-    else:
-        print("No checkpoint id provided, training new agent\n")
-        high_score = float("inf")
-        best_agent: DQN | DDPG | None = None
 
-        for i in range(9):
-            print(f"Training agent: {i+1}\n")
-            agent = create_agent(eps=500000)
-            agent.train(seed=True)
-
-            if agent.high_score < high_score:
-                print(f"Starting agent upgraded, new highest score: {agent.high_score}\n")
-                best_agent = agent
-                high_score = agent.high_score
-
-        assert best_agent is not None
-        print("Training best agent \n")
-        best_agent_continued = create_agent(chk=best_agent.latest_checkpoint)
-        best_agent_continued.train()
+    for random in [True, False]:
+        agent = create_ddpg_agent(random=random)
+        agent.train()

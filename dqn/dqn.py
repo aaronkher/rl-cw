@@ -34,7 +34,10 @@ class DQN:
         epsilon_decay: float = 0.05,
         buffer_batch_size: int = 100,
         checkpoint_id: str | None = None,
-        vanilla: bool = False,
+        double_dqn: bool = True,
+        prioritised_replay: bool = True,
+        polyak: bool = True,
+        random: bool = False,
     ):
         self.episode_count = episode_count
         self.timestep_count = timestep_count
@@ -44,13 +47,17 @@ class DQN:
         self.decay_rate = epsilon_decay
         self.epsilon = epsilon_start
 
-        self.vanilla = vanilla
         self.gamma = gamma
         self.buffer_batch_size = buffer_batch_size
 
+        self.double_dqn = double_dqn
+        self.prioritised_replay = prioritised_replay
+        self.polyak = polyak
+        self.random = random
+
         self.environment = environment
 
-        self.transition_buffer = TransitionBuffer(omega=0.5, prioritised=not self.vanilla)
+        self.transition_buffer = TransitionBuffer(omega=0.5, prioritised=prioritised_replay)
         self.policy_network = DqnNetwork(self.environment)  # q1 / θ
         self.target_network = self.policy_network.create_copy()  # q2 / θ-
 
@@ -62,7 +69,7 @@ class DQN:
 
         self.total_timesteps = 0
 
-    def get_policy_action(self, state: State, stochastic: bool = True) -> DiscreteAction:
+    def get_policy_action(self, state: State, stochastic: bool = False) -> DiscreteAction:
         if stochastic:
             action_preferences = self.policy_network.get_q_values(state).tensor
             action_preferences = (action_preferences + 1) / 2
@@ -77,7 +84,7 @@ class DQN:
             return self.policy_network.get_best_action(state)
 
     def get_action_using_epsilon_greedy(self, state: State):
-        if np.random.uniform(0, 1) < self.epsilon:
+        if np.random.uniform(0, 1) < self.epsilon or self.random:
             # pick random action
             return self.environment.random_action()
         else:
@@ -115,10 +122,8 @@ class DQN:
 
         return td_target
 
-    def compute_td_targets_batch(
-        self, experiences: TransitionBatch, double_dqn: bool = True
-    ) -> TdTargetBatch:
-        if double_dqn:
+    def compute_td_targets_batch(self, experiences: TransitionBatch) -> TdTargetBatch:
+        if self.double_dqn:
             # td_target = R_t+1 + γ * max_a' q_θ-(S_t+1, argmax_a' q_θ(S_t+1, a'))
 
             # the best action in S_t+1, according to the policy network
@@ -163,8 +168,8 @@ class DQN:
             -self.decay_rate * episode
         )
 
-    def update_target_network(self, polyak: bool = True):
-        if polyak:
+    def update_target_network(self):
+        if self.polyak:
             target_net_state = self.target_network.state_dict()
             policy_net_state = self.policy_network.state_dict()
             tau = 0.005
@@ -213,14 +218,14 @@ class DQN:
 
                     if self.transition_buffer.size() > self.buffer_batch_size:
                         replay_batch = self.transition_buffer.get_batch(self.buffer_batch_size)
-                        td_targets = self.compute_td_targets_batch(replay_batch, double_dqn=not self.vanilla)
+                        td_targets = self.compute_td_targets_batch(replay_batch)
 
                         loss = self.backprop(replay_batch, td_targets)
                         plot.add_losses(loss, can_redraw=False)
 
                         self.update_experiences_td_errors(replay_batch)
 
-                    self.update_target_network(polyak=not self.vanilla)
+                    self.update_target_network()
 
                     # process termination
                     if transition.end_of_episode():
@@ -270,6 +275,11 @@ class DQN:
                         "running_for": running_for,
                         "start_checkpoint": self.checkpoint_id,
                         "previous_checkpoint": self.latest_checkpoint,
+                        "high_score": self.high_score,
+                        "double_dqn": self.double_dqn,
+                        "prioritised_replay": self.prioritised_replay,
+                        "polyak": self.polyak,
+                        "random": self.random,
                         "suffix": suffix,
                     }
                     checkpoint_folder, self.latest_checkpoint = self.policy_network.save_checkpoint(
@@ -282,7 +292,6 @@ class DQN:
 
                 self.decay_epsilon(episode)
 
-                
                 # if not won:
                 time_taken = -1.0
                 plot.add_episode(reward_sum, won, running_avg, time_taken)
