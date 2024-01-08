@@ -18,9 +18,9 @@ from network import NeuralNetwork
 
 
 class GymnasiumEnv(Environment):
-    def __init__(self, env_name: str, render: bool = False):
+    def __init__(self, env_name: str, render: bool = False, gym_args = {}):
         render_mode = "human" if render else None
-        self.env = gymnasium.make(env_name, render_mode=render_mode)
+        self.env = gymnasium.make(env_name, render_mode=render_mode, **gym_args)
 
         self.reset()
         self._current_state: State
@@ -139,8 +139,8 @@ class LunarLanderEnv(DiscreteGymnasiumEnv):
 
 
 class ContinuousGymnasiumEnv(GymnasiumEnv, ContinuousActionEnv):
-    def __init__(self, env_name: str, render: bool = False):
-        super().__init__(env_name, render)
+    def __init__(self, env_name: str, render: bool = False, gym_args = {}):
+        super().__init__(env_name, render, gym_args=gym_args)
 
         device = NeuralNetwork.device()
         self.low = torch.tensor(self.env.action_space.low, device=device)  # type: ignore
@@ -205,6 +205,14 @@ class MountainCarContinuousEnv(ContinuousGymnasiumEnv):
         acceleration = (abs(float(new_velocity)) - abs(float(old_velocity))) * 100
 
         return transition.reward + acceleration
+
+    def won(self, transition: Transition) -> bool:
+        # terminated means we reached the finish line
+        return transition.new_state.terminal
+
+class LunarLanderContinuousEnv(ContinuousGymnasiumEnv):
+    def __init__(self, render: bool = False):
+        super().__init__("LunarLander-v2", render, {"continuous": True})
 
     def won(self, transition: Transition) -> bool:
         # terminated means we reached the finish line
