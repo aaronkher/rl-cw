@@ -157,7 +157,8 @@ class ContinuousGymnasiumEnv(GymnasiumEnv, ContinuousActionEnv):
         action *= self.high - self.low  # [0, high - low]
         action += self.low  # [low, high]
 
-        assert self.low <= action <= self.high
+        assert (self.low <= action).all()
+        assert (action <= self.high).all()
         return ContinuousAction(action)
 
     def take_action(self, action: ContinuousAction):
