@@ -5,6 +5,7 @@ from dqn.dqn import DQN
 from environment.gymnasium import (
     CartpoleEnv,
     LunarLanderEnv,
+    LunarLanderContinuousEnv,
     MountainCarContinuousEnv,
     MountainCarEnv,
     PendulumEnv,
