@@ -42,7 +42,7 @@ class TrackmaniaEnv(Environment):
 
     @property
     def observation_space_length(self) -> int:
-        return 3
+        return 19
 
     def tensorify_state(self, state: tuple[np.ndarray], terminated: bool) -> State:
         np_state = self.format_state(state)
