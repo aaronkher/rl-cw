@@ -138,8 +138,8 @@ class DQN:
         else:
             # td_target = R_t+1 + γ * max_a' q_θ-(S_t+1, a')
             q_values = self.target_network.get_q_values_batch(experiences.new_states)
-            best_actions = q_values.best_actions()
-            q_values = q_values.for_actions(best_actions.unsqueeze(1))
+            best_actions = q_values.best_actions().unsqueeze(1)
+            q_values = q_values.for_actions(best_actions).squeeze(1)
 
         q_values[experiences.terminal] = 0
         q_values *= self.gamma
