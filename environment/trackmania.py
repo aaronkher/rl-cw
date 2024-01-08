@@ -54,7 +54,7 @@ class TrackmaniaEnv(Environment):
     def format_state(self, state: tuple[np.ndarray, ...]) -> np.ndarray:
         speed, progress, lidars, prev_action1, prev_action2 = state
         lidars = lidars[3]
-        lidars = np.array([lidars[2], lidars[9], lidars[-3]])
+        # lidars = np.array([lidars[2], lidars[9], lidars[-3]])
         return lidars
 
     def take_action(self, raw_action: Action, gas: float, steer: float) -> Transition:
@@ -92,6 +92,12 @@ class TrackmaniaEnv(Environment):
         # if right_lidar < 150:
         #     reward -= 0.5
 
+        prev_speed = getattr(old_state, "speed")
+        new_speed = float(np_new_state[0])
+        setattr(new_state, "speed", new_speed)
+        acceleration = (new_speed - prev_speed) * 100
+        reward += acceleration
+
         speed = float(np_new_state[0])
         reward += speed / 500
 
@@ -108,9 +114,9 @@ class TrackmaniaEnv(Environment):
     def reset(self):
         (current_state, _) = self.env.reset()
         self._current_state = self.tensorify_state(current_state, False)
+        setattr(self._current_state, "speed", 0.0)
 
         self.last_action_taken = None
-
         self.last_reset = time.time()
 
     # keycodes from: https://community.bistudio.com/wiki/DIK_KeyCodes

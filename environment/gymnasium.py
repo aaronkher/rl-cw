@@ -197,15 +197,15 @@ class MountainCarContinuousEnv(ContinuousGymnasiumEnv):
     def __init__(self, render: bool = False):
         super().__init__("MountainCarContinuous-v0", render)
 
-    def reward_engineering(self, transition: Transition) -> float:
-        old_state = transition.old_state
-        _, old_velocity = old_state.tensor
-        new_state = transition.new_state
-        _, new_velocity = new_state.tensor
+    # def reward_engineering(self, transition: Transition) -> float:
+    #     old_state = transition.old_state
+    #     _, old_velocity = old_state.tensor
+    #     new_state = transition.new_state
+    #     _, new_velocity = new_state.tensor
 
-        acceleration = (abs(float(new_velocity)) - abs(float(old_velocity))) * 100
+        # acceleration = (abs(float(new_velocity)) - abs(float(old_velocity))) * 100
 
-        return transition.reward + acceleration
+    #     return transition.reward + acceleration
 
     def won(self, transition: Transition) -> bool:
         # terminated means we reached the finish line
